@@ -12,14 +12,14 @@ class User:
         return "Connecting..."
 
     def interactions(self):
-        chat_response = None
-        if self.session.question is None or self.session.wait_for_the_user:
+        chat_response = json.dumps([])
+        if self.session.user_input is None or self.session.wait_for_the_user:
             user_input = self.session.cli.read_input()
-            if self.session.question is None:
-                self.session.question = user_input
-                self.session.agent.socrates.set_question(self.session.question)
-                self.session.agent.theaetetus.set_question(self.session.question)
-                self.session.agent.plato.set_question(self.session.question)
+            if self.session.user_input is None:
+                self.session.user_input = user_input
+                self.session.agent.socrates.set_question(self.session.user_input)
+                self.session.agent.theaetetus.set_question(self.session.user_input)
+                self.session.agent.plato.set_question(self.session.user_input)
                 response = self.generate_response(user_input, mode="question")
 
             if self.session.wait_for_the_user:

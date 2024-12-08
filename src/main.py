@@ -11,7 +11,7 @@ class SessionState:
         self.client_id = client_id
         self.dialog_lead = None
         self.dialog_follower = None
-        self.question = None
+        self.user_input = None
         self.asked_question = False
         self.in_progress = False
         self.in_progress_sub = False
@@ -21,7 +21,7 @@ class SessionState:
         self.all_questions_to_the_user = ""
         self.cli = CLI(client_id)
         self.user = User(self)
-        # Aidan Agent Config
+        # Aidan Agent Config: Self Awareness AI Assistant
         agent_config = {
                 # Socrates and Theaetetus are two AI assistants for the User to:
                 'purpose': 'that will assist the User in answering their questions, providing feedback, and/or engaging with the user to help them improve their self awareness',
@@ -48,6 +48,8 @@ def main():
         if response != None:
             session.cli.write_json(response)
         response = session.agent.interactions()
+        # TODO: Hide Socratic conversation session from the User
+        # and output only Agent questions and final answers
         session.cli.write_json(response)
 
     # while True:

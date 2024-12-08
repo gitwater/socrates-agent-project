@@ -4,7 +4,7 @@ import json
 import re
 import time
 
-debug_printing = False
+debug_printing = True
 
 class Agent:
 
@@ -204,110 +204,135 @@ class SocraticAgent:
                                 "answer": "No response from the User..."})
         return results
 
-    def interactions(self):
-        if self.session.question:
-            if not self.session.in_progress:
-                self.session.in_progress = True
-                self.session.dialog_lead, self.session.dialog_follower = self.socrates, self.theaetetus
-                return json.dumps([
-                    {'role':'Socrates',
-                    'response': f"Hi Theaetetus, let's solve this problem together. Please feel free to correct me if I make any logical mistakes.\n"}
-                    ])
+    # Start a conversation to provide a response to the user's input
+    def interaction_start_socratic_conversation(self):
+        self.session.in_progress = True
+        self.session.dialog_lead, self.session.dialog_follower = self.socrates, self.theaetetus
+        return json.dumps([
+            {'role': 'Socrates',
+            'response': f"Hi Theaetetus, let's solve this problem together. Please feel free to correct me if I make any logical mistakes.\n"}
+            ])
+
+    def interaction_ask_user_question(self, msg_list, question_to_the_user):
+        self.session.all_questions_to_the_user = " ".join(question_to_the_user)
+        msg_list.append(
+            {'role': 'System',
+            'response': f"Asking the User: {self.session.all_questions_to_the_user}"})
+        self.session.wait_for_the_user = True
+        return msg_list
+
+    def interaction_final_answer(self, msg_list, rep):
+        self.session.user_input = None
+        self.session.asked_question = False
+        self.session.in_progress = False
+        self.session.first_question = False
+        self.session.interactive_p = None
+        self.socrates.history = []
+        self.theaetetus.history = []
+        self.plato.history = []
+
+        if ("@final answer" in rep) or ("bye" in rep):
+            msg_list.append(
+                    {'role': 'System',
+                    'response': "They just gave you their final answer."})
+        elif "The context length exceeds my limit..." in rep:
+            msg_list.append(
+                    {'role': 'System',
+                    'response': "The dialog went too long, please try again."})
+        if debug_printing:
+            print("user_input:", self.session.user_input)
+            print("asked_question:", self.session.asked_question)
+            print("in_progress:", self.session.in_progress)
+            print("msg list:")
+            print(msg_list)
+            print("end conversation reset")
+        self.session.in_progress_sub = False
+
+        return msg_list
+
+    def interaction_proofread(self, msg_list):
+        pr = self.plato.proofread()
+        if pr:
+            msg_list.append(
+                {'role': 'Plato',
+                'response': pr})
+            self.socrates.add_proofread(pr)
+            self.theaetetus.add_proofread(pr)
+            feedback = self.ask_the_User(pr)
+            if feedback:
+                for fed in feedback:
+                    q, a = fed["question"], fed["answer"]
+                    if debug_printing:
+                        print(f"\033[1mThe User:\033[0m Received Question: {q}\n\n  Answer: {a}\n")
+                    self.socrates.add_feedback(q, a)
+                    self.theaetetus.add_feedback(q, a)
+                    self.plato.add_feedback(q, a)
+
+        self.session.dialog_lead, self.session.dialog_follower = self.session.dialog_follower, self.session.dialog_lead
+
+        return msg_list
+
+    def interaction_continue_socratic_conversation(self):
+        msg_list = []
+        if self.session.in_progress_sub == False and self.session.wait_for_the_user == False:
+            self.session.in_progress_sub = True
+            rep = self.session.dialog_follower.get_response()
+            msg_list.append({'role': self.session.dialog_follower.persona, 'response': rep})
+            self.session.dialog_lead.update_history(rep)
+            self.plato.update_history(f"{self.session.dialog_follower.persona}: "+rep)
+            question_to_the_user = self.need_to_ask_the_User(rep)
+            if question_to_the_user:
+                msg_list = self.interaction_ask_user_question(msg_list, question_to_the_user)
+            elif ("@final answer" in rep) or ("bye" in rep) or ("The context length exceeds my limit..." in rep):
+                return json.dumps(self.interaction_final_answer(msg_list, rep))
             else:
-                if self.session.in_progress_sub == False and self.session.wait_for_the_user == False:
-                    self.session.in_progress_sub = True
-                    msg_list = []
-                    rep = self.session.dialog_follower.get_response()
-                    msg_list.append({'role': self.session.dialog_follower.persona, 'response': rep})
-                    self.session.dialog_lead.update_history(rep)
-                    self.plato.update_history(f"{self.session.dialog_follower.persona}: "+rep)
-                    question_to_the_user = self.need_to_ask_the_User(rep)
-                    if question_to_the_user:
-                        self.session.all_questions_to_the_user = " ".join(question_to_the_user)
-                        msg_list.append(
-                            {'role': 'System',
-                            'response': f"Asking the User: {self.session.all_questions_to_the_user}"})
-                        self.session.wait_for_the_user = True
+                msg_list = self.interaction_proofread(msg_list)
 
-
-                    elif ("@final answer" in rep) or ("bye" in rep) or ("The context length exceeds my limit..." in rep):
-                        self.session.question = None
-                        self.session.asked_question = False
-                        self.session.in_progress = False
-                        self.session.first_question = False
-                        self.session.interactive_p = None
-                        self.socrates.history = []
-                        self.theaetetus.history = []
-                        self.plato.history = []
-
-                        if ("@final answer" in rep) or ("bye" in rep):
-                            msg_list.append(
-                                    {'role': 'System',
-                                    'response': "They just gave you their final answer."})
-                        elif "The context length exceeds my limit..." in rep:
-                            msg_list.append(
-                                    {'role': 'System',
-                                    'response': "The dialog went too long, please try again."})
-                        if debug_printing:
-                            print("question:", self.session.question)
-                            print("asked_question:", self.session.asked_question)
-                            print("in_progress:", self.session.in_progress)
-                            print("msg list:")
-                            print(msg_list)
-                            print("end conversation reset")
-                        self.session.in_progress_sub = False
-
-                        return json.dumps(msg_list)
-
-                    else:
-                        pr = self.plato.proofread()
-                        if pr:
-                            msg_list.append(
-                                {'role': 'Plato',
-                                'response': pr})
-                            self.socrates.add_proofread(pr)
-                            self.theaetetus.add_proofread(pr)
-                            feedback = self.ask_the_User(pr)
-                            if feedback:
-                                for fed in feedback:
-                                    q, a = fed["question"], fed["answer"]
-                                    if debug_printing:
-                                        print(f"\033[1mThe User:\033[0m Received Question: {q}\n\n  Answer: {a}\n")
-                                    self.socrates.add_feedback(q, a)
-                                    self.theaetetus.add_feedback(q, a)
-                                    self.plato.add_feedback(q, a)
-
-                        self.session.dialog_lead, self.session.dialog_follower = self.session.dialog_follower, self.session.dialog_lead
-
-                    if debug_printing:
-                        print("question:", self.session.question)
-                        print("asked_question:", self.session.asked_question)
-                        print("in_progress:", self.session.in_progress)
-                        print("msg list:")
-                        print(msg_list)
-                    self.session.in_progress_sub = False
-                    return json.dumps(msg_list)
-
-                else:
-                    if debug_printing:
-                        print("under processing")
-                    return json.dumps([])
-        elif not self.session.asked_question:
-            self.session.asked_question = True
             if debug_printing:
-                print("question:", self.session.question)
+                print("user_input:", self.session.user_input)
                 print("asked_question:", self.session.asked_question)
                 print("in_progress:", self.session.in_progress)
-                print("ask user's question")
-            if self.session.first_question:
-                msg = "What's your question?"
-            else:
-                msg = "Do you have more questions?"
-            return json.dumps([{'role': 'System',
-                            'response': msg}])
+                print("msg list:")
+                print(msg_list)
+            self.session.in_progress_sub = False
         else:
             if debug_printing:
-                print("question:", self.session.question)
+                print("under processing")
+        return json.dumps(msg_list)
+
+    def interaction_ask_for_more_questions(self):
+        self.session.asked_question = True
+        if debug_printing:
+            print("user_input:", self.session.user_input)
+            print("asked_question:", self.session.asked_question)
+            print("in_progress:", self.session.in_progress)
+            print("ask user's question")
+        if self.session.first_question:
+            msg = "What's your question?"
+        else:
+            msg = "Do you have more questions?"
+        return json.dumps([{'role': 'System',
+                        'response': msg}])
+
+    # Processes the interactions with the User
+    def interactions(self):
+        # If the User has provided input, process it to generate a response
+        if self.session.user_input:
+            if not self.session.in_progress:
+                # Start a Socractic conversation to generate a response to the user's input
+                return self.interaction_start_socratic_conversation()
+            else:
+                # Continue the Socratic conversation to generate a response to the user's input
+                return self.interaction_continue_socratic_conversation()
+        elif not self.session.asked_question:
+            # If the user has not provided input, and the agent has not asked any questions
+            # then ask the user for a question
+            return self.interaction_ask_for_more_questions()
+        else:
+            # If the user has not provided input, and the agent has already asked a question
+            # Do nothing
+            if debug_printing:
+                print("user_input:", self.session.user_input)
                 print("asked_question:", self.session.asked_question)
                 print("in_progress:", self.session.in_progress)
                 print("no question skip")

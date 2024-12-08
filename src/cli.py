@@ -30,6 +30,8 @@ class CLI:
     def write_json(self, json_data, quiet=False):
         # Pretty print the JSON data
         write_data = json.loads(json_data)
+        if write_data == None:
+            breakpoint()
         for message in write_data:
             self.write(f"{message['role']}: {message['response']}", quiet, initial_indent='    ', subsequent_indent='        ')
             print()
