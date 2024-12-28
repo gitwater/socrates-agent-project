@@ -33,6 +33,8 @@ class CLI:
         if write_data == None:
             breakpoint()
         for message in write_data:
+            #normalized_response = message['response'][:65].replace('\n', ' ')
+            #print(f"{message['role']}: {normalized_response}")
             self.write(f"{message['role']}: {message['response']}", quiet, initial_indent='    ', subsequent_indent='        ')
             print()
 

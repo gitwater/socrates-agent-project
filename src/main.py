@@ -24,7 +24,7 @@ class SessionState:
         # Aidan Agent Config: Self Awareness AI Assistant
         agent_config = {
                 # Socrates and Theaetetus are two AI assistants for the User to:
-                'purpose': 'that will assist the User in answering their questions, providing feedback, and/or engaging with the user to help them improve their self awareness',
+                'purpose': 'to assist the User in answering their questions, providing feedback, and/or engaging with the user to help them improve their self awareness',
                 'user_input': 'The users input is as follows',
                 # Socrates and Theaetetus will engage in multi-round dialogue to:
                 'engagement_purpose': 'analyze the Users current state and input to provide the best answer, feedback, and/or engagement for the User.',
@@ -38,7 +38,7 @@ each other's reasoning, avoiding logical errors, and effectively communicating t
                 'if_answer_not_valid': 'they should re-evaluate their reasoning and calculations.'
             }
         #self.agent = SocraticAgent(self, agent_config)
-        self.agent = SocraticAgent(self, agent_config, "gpt-4o")
+        self.agent = SocraticAgent(self, agent_config)
 
 def main():
     session = SessionState(default_client_id)

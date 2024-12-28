@@ -17,16 +17,11 @@ class User:
             user_input = self.session.cli.read_input()
             if self.session.user_input is None:
                 self.session.user_input = user_input
-                self.session.agent.socrates.set_question(self.session.user_input)
-                self.session.agent.theaetetus.set_question(self.session.user_input)
-                self.session.agent.plato.set_question(self.session.user_input)
-                response = self.generate_response(user_input, mode="question")
+                self.session.agent.set_question(self.session.user_input)
+                response = self.generate_response(self.session.user_input, mode="question")
 
             if self.session.wait_for_the_user:
-                feedback = user_input
-                self.session.agent.socrates.add_feedback(self.session.all_questions_to_the_user, feedback)
-                self.session.agent.theaetetus.add_feedback(self.session.all_questions_to_the_user, feedback)
-                self.session.agent.plato.add_feedback(self.session.all_questions_to_the_user, feedback)
+                self.session.agent.add_feedback(self.session.all_questions_to_the_user, user_input)
                 self.session.all_questions_to_the_user = ""
                 self.session.wait_for_the_user = False
                 response = self.generate_response(user_input, mode="feedback")
