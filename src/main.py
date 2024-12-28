@@ -37,6 +37,275 @@ each other's reasoning, avoiding logical errors, and effectively communicating t
                 # If they encounter any issues with the validity of their answer, :
                 'if_answer_not_valid': 'they should re-evaluate their reasoning and calculations.'
             }
+        # Agent Persona Framework Config
+        persona_framework = {
+            'persona': {
+                'name': 'Aidan',
+                'description': 'Human Self Discovery AI Assistant',
+                'purpose': """You are a Human Self Discovery AI Assistant specializing in neuropsychology. You help users assess and understand their
+self-awareness dimension scores, guide them through personalized learning and practices, and spend time reflecting with the user
+to understand their progress, discuss their day or past expereinces, provide an ear to listen, and offer feedback.""",
+            },
+            'states': {
+                'assessment': {
+                    'description': "Used to assess the user's Self Awareness dimension and subdimension scores",
+                    'substates': {
+                    }
+                },
+                'education': {
+                    'description': "Used to educate the user on the Self Awareness dimension and subdimension being focused on",
+                    'substates': {
+                    }
+                },
+                'practice': {
+                    'description': "Used to suggest, discuss, and assist with practices to improve the user's Self Awareness dimension and subdimension score being focused on",
+                    'substates': {
+                    }
+                },
+                'reflection': {
+                    'description': "Used to reflect on the users progress, discuss their day, provide an ear to listen, and offer feedback",
+                    'substates': {
+                    }
+                },
+            },
+            'goals': {
+                'general': {
+                    'goal1': 'To increase each dimension score overtime until reaching a score of 100',
+                    #'goal2': 'To continuously determine which dimensions and subdimensions to focus on based on the users profile, input, and feedback',
+                    #'goal3': 'To continuously determine which state and substate to be in based on the context of the situtation.',
+                }
+            },
+            'prompt_data': {
+                'framework_overview': "",
+                'framework_states': "",
+                'framework_goals': "",
+                'user_state': {
+                    'dimensions': {
+                        'value': "agent.ref data.user.dimensions(!description)"
+                    },
+                    'dimension_focus': {
+                        'purpose': 'Determine which dimension and subdimension the user should focus on',
+                        'strategy': [
+                            'Dimension with the lowest score and the subdimension with in it with the lowest score',
+                            'Dimension and its subdimensions with the highest priority based on a neuropsychological model',
+                        ],
+                        'value': {
+                            'dimension': '',
+                            'subdimension': ''
+                        }
+                    },
+                    'state_focus': {
+                        'description': 'Indicates which state and substate the user should focus on',
+                        'strategy': [
+                            'Use the users recent experiences to determine which state and substate the user should be in'
+                        ],
+                        'value': {
+                            'state': 'assessment',
+                            'substate': ''
+                        }
+                    }
+                }
+            },
+            'data': {
+                'user': {
+                    'dimensions': {
+                        "Internal Self-Awareness": {
+                            'description': "",
+                            'score': 0,
+                            'subdimensions': {
+                                "Emotional Awareness": {
+                                    'description': "",
+                                    'score': 0,
+                                },
+                                "Cognitive Awareness": {
+                                    'description': "",
+                                    "score": 0
+                                },
+                                "Physical Awareness (Interoception)": {
+                                    'description': "",
+                                    "score": 0
+                                },
+                                "Values and Beliefs Awareness": {
+                                    'description': "",
+                                    "score": 0
+                                },
+                            }
+                        },
+                        "External Self-Awareness": {
+                            'description': "",
+                            'score': 0,
+                            'subdimensions': {
+                                "Social Awareness": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Empathy": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Feedback Integration": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                            }
+                        },
+                        "Emotional Regulation": {
+                            'description': "",
+                            'score': 0,
+                            'subdimensions': {
+                                "Emotional Resilience": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Emotional Regulation Strategies": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Impulse Control": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                            }
+                        },
+                        "Metacognition (Cognitive Reflection)": {
+                            'description': "",
+                            'score': 0,
+                            'subdimensions': {
+                                "Self-Reflection": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Bias Recognition": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Strategic Thinking": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                            }
+                        },
+                        "Mindfulness": {
+                            'description': "",
+                            'score': 0,
+                            'subdimensions': {
+                                "Present-Moment Awareness": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Non-Judgmental Observation": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Acceptance": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                            }
+                        },
+                        "Behavioral Awareness": {
+                            'description': "",
+                            'score': 0,
+                            'subdimensions': {
+                                "Action-Outcome Linkage": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Consistency with Values": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Habit Awareness": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                            }
+                        },
+                        "Interpersonal Awareness": {
+                            'description': "",
+                            'score': 0,
+                            'subdimensions': {
+                                "Communication Skills": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Relationship Dynamics": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Boundary Setting": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                            }
+                        },
+                        "Cultural Awareness": {
+                            'description': "",
+                            'score': 0,
+                            'subdimensions': {
+                                "Cultural Sensitivity": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Ethnocentrism Recognition": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Inclusivity Practices": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                            }
+                        },
+                        "Physical Environment Awareness": {
+                            'description': "",
+                            'score': 0,
+                            'subdimensions': {
+                                "Sensory Perception": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Spatial Awareness": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Environmental Influence": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                            }
+                        },
+                        "Purpose and Meaning Awareness": {
+                            'description': "",
+                            'score': 0,
+                            'subdimensions': {
+                                "Goal Alignment": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Existential Reflection": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                                "Motivational Drivers": {
+                                    "description": "",
+                                    "score": 0
+                                },
+                            }
+                        }
+                    },
+                    'goals': {
+                        'dimension_priority': [
+                            {
+                                'dimension': 'Emotional Regulation',
+                                'subdimension_priority': ['Emotional Resilience']
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
         #self.agent = SocraticAgent(self, agent_config)
         self.agent = SocraticAgent(self, agent_config)
 

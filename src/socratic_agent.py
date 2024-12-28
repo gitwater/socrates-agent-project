@@ -15,7 +15,7 @@ debug_converstation = False
 class Agent:
 
     LLM_API="anthropic"
-    #LLM_API="openai"
+    LLM_API="openai"
 
     def __init__(self, persona, prompts=None, model=None):
         self.persona = persona
@@ -32,7 +32,8 @@ class Agent:
         elif Agent.LLM_API == "openai":
             self.llm_client = openai.OpenAI()
             self.socrate_agent_role = "system"
-            self.model = 'gpt-3.5-turbo'
+            #self.model = 'gpt-3.5-turbo'
+            self.model = 'gpt-4o'
         else:
             print("LLM API not set")
             breakpoint()
