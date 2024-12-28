@@ -50,6 +50,12 @@ to understand their progress, discuss their day or past expereinces, provide an 
                 'assessment': {
                     'description': "Used to assess the user's Self Awareness dimension and subdimension scores",
                     'substates': {
+                        'score_evaluation': {
+                            'description': "Used to evaluate the user's Self Awareness dimension and subdimension scores",
+                        },
+                        'goal_setting': {
+                            'description': "Used to set goals for the user's Self Awareness dimension and subdimension scores",
+                        },
                     }
                 },
                 'education': {
@@ -69,22 +75,56 @@ to understand their progress, discuss their day or past expereinces, provide an 
                 },
             },
             'goals': {
-                'general': {
+                'framework': {
                     'goal1': 'To increase each dimension score overtime until reaching a score of 100',
                     #'goal2': 'To continuously determine which dimensions and subdimensions to focus on based on the users profile, input, and feedback',
                     #'goal3': 'To continuously determine which state and substate to be in based on the context of the situtation.',
+                },
+                'state': {
+                    'assessment': {
+                        'goal1': 'The user has evaluated a score for all dimensions and subdimensions',
+                        # Goal Setting
+                        # 1. Dimension and Subdimension to focus on
+                        # 2. Set a score goal for the dimension and subdimension
+                        # 3. Set a time goal for the dimension and subdimension
+                        # 4. Set an education goal for the dimension and subdimension
+                        #    4.1 Set an amount of time spent in education goal for the dimension and subdimension
+                        # 5. Set a practice goal for the dimension and subdimension
+                        #    5.1 Determine one to three practices to focus on for the dimension and subdimension
+                        #    5.2 Set an amount of time spent in practice goal for each practice
+                        'goal2': {
+                            'description': 'The user has set one to three goals for how they would like to proceed with their self-awareness journey',
+                            'variable': 'user.data.goals'
+                        },
+                    },
+                    'education': {
+                        'TimeSpent': {
+                            'name': '<dimension><subdimension>TimeSpentGoal',
+                            'description': 'The user has spent the goal amount of time on education for the dimension and subdimension',
+                            'type': 'elapsed_time',
+                            'start_time': '',
+                            'end_time': '',
+                            'goal_time': ''
+                        }
+                    },
+                    'practice': {
+                    },
+                    'reflection': {
+                    }
                 }
             },
             'prompt_data': {
                 'framework_overview': "",
                 'framework_states': "",
                 'framework_goals': "",
-                'user_state': {
-                    'dimensions': {
-                        'value': "agent.ref data.user.dimensions(!description)"
+                'user_data': {
+                    'dimensions_and_scores': {
+                        'value': "persona.ref data.user.dimensions(!description, !questions)"
                     },
-                    'dimension_focus': {
-                        'purpose': 'Determine which dimension and subdimension the user should focus on',
+                },
+                'user_states': {
+                    'dimension': {
+                        'purpose': 'Determines which dimension and subdimension the user is focusing on',
                         'strategy': [
                             'Dimension with the lowest score and the subdimension with in it with the lowest score',
                             'Dimension and its subdimensions with the highest priority based on a neuropsychological model',
@@ -300,7 +340,18 @@ to understand their progress, discuss their day or past expereinces, provide an 
                                 'dimension': 'Emotional Regulation',
                                 'subdimension_priority': ['Emotional Resilience']
                             }
-                        ]
+                        ],
+                        'state': {
+                            'education': [
+                                {
+                                    'name': 'DimensionSubdimensionTimeSpentGoal',
+                                    'type': 'elapsed_time',
+                                    'start_time': '',
+                                    'end_time': '',
+                                    'goal_time': '3 hours'
+                                }
+                            ]
+                        }
                     }
                 }
             }
