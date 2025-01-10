@@ -17,7 +17,7 @@ class User:
             user_input = self.session.cli.read_input()
             if self.session.user_input is None:
                 self.session.user_input = user_input
-                self.session.agent.set_question(self.session.user_input)
+                self.session.agent.process_user_input(self.session.user_input)
                 response = self.generate_response(self.session.user_input, mode="question")
 
             if self.session.wait_for_the_user:

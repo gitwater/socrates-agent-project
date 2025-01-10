@@ -38,17 +38,36 @@ each other's reasoning, avoiding logical errors, and effectively communicating t
                 'if_answer_not_valid': 'they should re-evaluate their reasoning and calculations.'
             }
         # Agent Persona Framework Config
-        persona_framework = {
+        persona_framework_config = {
             'persona': {
                 'name': 'Aidan',
-                'description': 'Human Self Discovery AI Assistant',
-                'purpose': """You are a Human Self Discovery AI Assistant specializing in neuropsychology. You help users assess and understand their
-self-awareness dimension scores, guide them through personalized learning and practices, and spend time reflecting with the user
-to understand their progress, discuss their day or past expereinces, provide an ear to listen, and offer feedback.""",
+                'description': 'Human Self Discovery AI Assistant specializing in neuropsychology',
+                'purpose': """To help users assess and understand their self-awareness dimension scores,
+guide them through personalized learning and practices, and spend time reflecting with the user to understand
+their progress, discuss their day or past expereinces, provide an ear to listen, and offer feedback.""",
             },
             'states': {
                 'assessment': {
                     'description': "Used to assess the user's Self Awareness dimension and subdimension scores",
+                    'goals': [
+                        {
+                            'name': 'goal1',
+                            'goal': 'The user has evaluated a score for all dimensions and subdimensions',
+                        },
+                        # Goal Setting
+                        # 1. Dimension and Subdimension to focus on
+                        # 2. Set a score goal for the dimension and subdimension
+                        # 3. Set a time goal for the dimension and subdimension
+                        # 4. Set an education goal for the dimension and subdimension
+                        #    4.1 Set an amount of time spent in education goal for the dimension and subdimension
+                        # 5. Set a practice goal for the dimension and subdimension
+                        #    5.1 Determine one to three practices to focus on for the dimension and subdimension
+                        #    5.2 Set an amount of time spent in practice goal for each practice
+                        {
+                            'name': 'goal2',
+                            'goal': 'The user has set one to three goals for how they would like to proceed with their self-awareness journey',
+                        },
+                    ],
                     'substates': {
                         'score_evaluation': {
                             'description': "Used to evaluate the user's Self Awareness dimension and subdimension scores",
@@ -80,71 +99,6 @@ to understand their progress, discuss their day or past expereinces, provide an 
                     #'goal2': 'To continuously determine which dimensions and subdimensions to focus on based on the users profile, input, and feedback',
                     #'goal3': 'To continuously determine which state and substate to be in based on the context of the situtation.',
                 },
-                'state': {
-                    'assessment': {
-                        'goal1': 'The user has evaluated a score for all dimensions and subdimensions',
-                        # Goal Setting
-                        # 1. Dimension and Subdimension to focus on
-                        # 2. Set a score goal for the dimension and subdimension
-                        # 3. Set a time goal for the dimension and subdimension
-                        # 4. Set an education goal for the dimension and subdimension
-                        #    4.1 Set an amount of time spent in education goal for the dimension and subdimension
-                        # 5. Set a practice goal for the dimension and subdimension
-                        #    5.1 Determine one to three practices to focus on for the dimension and subdimension
-                        #    5.2 Set an amount of time spent in practice goal for each practice
-                        'goal2': {
-                            'description': 'The user has set one to three goals for how they would like to proceed with their self-awareness journey',
-                            'variable': 'user.data.goals'
-                        },
-                    },
-                    'education': {
-                        'TimeSpent': {
-                            'name': '<dimension><subdimension>TimeSpentGoal',
-                            'description': 'The user has spent the goal amount of time on education for the dimension and subdimension',
-                            'type': 'elapsed_time',
-                            'start_time': '',
-                            'end_time': '',
-                            'goal_time': ''
-                        }
-                    },
-                    'practice': {
-                    },
-                    'reflection': {
-                    }
-                }
-            },
-            'prompt_data': {
-                'framework_overview': "",
-                'framework_states': "",
-                'framework_goals': "",
-                'user_data': {
-                    'dimensions_and_scores': {
-                        'value': "persona.ref data.user.dimensions(!description, !questions)"
-                    },
-                },
-                'user_states': {
-                    'dimension': {
-                        'purpose': 'Determines which dimension and subdimension the user is focusing on',
-                        'strategy': [
-                            'Dimension with the lowest score and the subdimension with in it with the lowest score',
-                            'Dimension and its subdimensions with the highest priority based on a neuropsychological model',
-                        ],
-                        'value': {
-                            'dimension': '',
-                            'subdimension': ''
-                        }
-                    },
-                    'state_focus': {
-                        'description': 'Indicates which state and substate the user should focus on',
-                        'strategy': [
-                            'Use the users recent experiences to determine which state and substate the user should be in'
-                        ],
-                        'value': {
-                            'state': 'assessment',
-                            'substate': ''
-                        }
-                    }
-                }
             },
             'data': {
                 'user': {
@@ -334,31 +288,12 @@ to understand their progress, discuss their day or past expereinces, provide an 
                             }
                         }
                     },
-                    'goals': {
-                        'dimension_priority': [
-                            {
-                                'dimension': 'Emotional Regulation',
-                                'subdimension_priority': ['Emotional Resilience']
-                            }
-                        ],
-                        'state': {
-                            'education': [
-                                {
-                                    'name': 'DimensionSubdimensionTimeSpentGoal',
-                                    'type': 'elapsed_time',
-                                    'start_time': '',
-                                    'end_time': '',
-                                    'goal_time': '3 hours'
-                                }
-                            ]
-                        }
-                    }
                 }
             }
         }
 
         #self.agent = SocraticAgent(self, agent_config)
-        self.agent = SocraticAgent(self, agent_config)
+        self.agent = SocraticAgent(self, persona_framework_config, agent_config)
 
 def main():
     session = SessionState(default_client_id)
