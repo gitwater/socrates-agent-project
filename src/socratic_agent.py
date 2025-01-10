@@ -81,6 +81,8 @@ Their response will take into account:
 
 Their discussion should balance quick responses with structured problem-solving depending on the nature of
 the question. They should avoid logical errors, such as false dichotomy, hasty generalization, circular reasoning.
+Responses should be as short as possible to keep token count low, but still include all necessary and
+relevant information.
 
 They are permitted to consult with the User if they encounter any uncertainties, difficulties, or need to
 make assumtions by using the following phrase: "@Check with the User: QSTART [insert your question] QEND". Any
@@ -104,7 +106,7 @@ If they encounter any issues with the validity of their answer, they should re-e
 Socrates and Theaetetus and identify any errors they made."""
         else:
             self.system_role += f"""Now, suppose that you are {self.socratic_persona}. Please discuss with
-{self.other_socratic_persona} to find a response to the users response and context.
+{self.other_socratic_persona} to find a response to the users input and context.
 
 """
 
@@ -214,17 +216,32 @@ Socrates and Theaetetus and identify any errors they made."""
 
     def get_framework_messages(self):
         messages = []
-
-        # Framework System Roles
+        # --------------------------------------------------
+        # Static Framework Configuration
         messages.append({
             "role": "system",
             "content": self.system_role
         })
+
+        # Framework: Static & Dynamic User Data
+        #  - Awareness Dimensions
+        #  - Framework states
+        # State
+        #  - User Awareness scores
+        #  - Current state
+        #  - Current state goals
+
+        messages = self.persona_agent.get_framework_messages(messages)
+
+        # --------------------------------------------------
+        # User Input
         messages.append({
             "role": "user",
             "content": f"User input: \"{self.persona_agent.current_user_input}\"."
         })
 
+        # --------------------------------------------------
+        # User Engagement
         if self.socratic_persona == "Plato":
             assistant_role = f"Hi Theaetetus and Socrates, "
         else:
@@ -236,18 +253,16 @@ Socrates and Theaetetus and identify any errors they made."""
             "content": assistant_role
         })
 
-        # Framework
-        #  - Awareness Dimensions
-        #  - Framework states
-        # State
-        #  - User Awareness scores
-        #  - Current state
-        #  - Current state goals
-        # Memory
-        #  - Short-term memory
-        #  - Long-term memory
+        # --------------------------------------------------
+        # TODO: Short Term & Long Term Memory
 
+        # --------------------------------------------------
+        # Conversation history
+        conversation_history_message = self.persona_agent.get_conversation_history()
+        messages.append(conversation_history_message)
 
+        # --------------------------------------------------
+        # Current response conversation history
         # Append the last 4 messages from the response history
         if len(self.response_history) > 4:
             messages += self.response_history[-4:]
@@ -269,27 +284,41 @@ class TheaetetusAgent(Agent):
 class PlatoAgent(Agent):
     def __init__(self, persona_agent, persona_config=None, model=None):
         super().__init__('Plato', persona_agent, persona_config, model)
+        self.proofread_see_previous_suggestions = 0
 
     def proofread(self):
         success_string = "Analysis looks reasonable"
         suggestions_string = "Here are my suggestions:"
+
+        if self.proofread_see_previous_suggestions >= 3:
+            previous_suggest_instruction = f"You have reached your 'Please see my previous suggestions' response, please response with \"{success_string}\" if you still need to waiting for more information."
+        else:
+            previous_suggest_instruction = "If you need to repeat your suggestions, please response with \"Please see my previous suggestions, waiting for more information, carry on working on a response\"."
+
         pf_template = {
                 "role":  self.socrate_agent_role,
                 "content": f"""
 The above is the conversation between Socrates and Theaetetus. Your job is to challenge their answers.
 They were likely to have made multiple mistakes. Please correct them.
-If the latest response from Socrates or Theaetetus does not offer any new information, please response with \"Waiting for more information\".
-If you need to repeat your suggestions, please response with |"Please see my previous suggestions, waiting for more information, carry on working on a response"|.
+{previous_suggest_instruction}
 If you think so far their discussion is alright, please respond with \"{success_string}.\".
 Do not ask the user any questions.
 Otherwise start with \"{suggestions_string}\"\n"""
         }
+
+        # If the latest response from Socrates or Theaetetus does not offer any new information, please response with \"Waiting for more information\".
 
         #msg = self.get_anthropic_response(self.history + [pf_template])
         messages = self.get_framework_messages() + [pf_template]
         msg = self.get_response(messages, add_to_history=True)
         #print("\n-----------------------------------\n")
         #print("\nPlato Proofread it!\n")
+
+        # Check if msg contains "Please see my previous suggestions" increment a counter
+        if "Please see my previous suggestions" in msg:
+            self.proofread_see_previous_suggestions += 1
+        else:
+            self.proofread_see_previous_suggestions = 0
 
         return msg
         # Check if msg starts with "Analysis looks reasonable" case insensitively
@@ -315,9 +344,99 @@ class SocraticAgent:
         self.plato = PlatoAgent(self, persona_config, model)
         self.conversation_history = []
 
+    # A recurrent fucntion to convert a data object from a JSON object to a string
+    # by iterating over keys and recalling the function to convert dicts and lists
+    def data_obj_json_to_string(self, data_obj, indent="    "):
+        data_obj_str = f""
+        for (key, value) in data_obj.items():
+            if type(value) == dict:
+                data_obj_str += f"{indent}{key}:\n{self.data_obj_json_to_string(value, indent+'  ')}"
+            elif type(value) == list:
+                data_obj_str += f"{indent}{key}:\n{self.data_obj_json_to_string(value, indent+'  ')}"
+            else:
+                data_obj_str += f"{indent}{key}: {value}\n"
+        return data_obj_str
+
+
+    def get_conversation_history(self):
+        conversation_history = "START Conversation History\n"
+        for message in self.conversation_history:
+            conversation_history += f"{message['role']}: {message['content']}\n\n"
+        conversation_history += "END Conversation History\n"
+        message = {
+            "role": "assistant",
+            "content": conversation_history
+        }
+        if len(self.conversation_history) > 1:
+            breakpoint()
+        return message
+
+    def get_framework_messages(self, messages):
+
+        # Framework States
+        framework_states = ""
+
+        for (state, state_config) in self.persona_config['states'].items():
+            # State
+            framework_states += f"    START State: {state}\n"
+            framework_states += f"      Description: {state_config['description']}\n"
+            if 'goals' in state_config.keys():
+                goal_count = 1
+                for goal_config in state_config['goals']:
+                    framework_states += f"      State goal{goal_count}: {goal_config['name']}: {goal_config['goal']}\n"
+                    goal_count += 1
+            # SubState
+            for (substate, substate_config) in self.persona_config['states'][state]['substates'].items():
+                framework_states += f"      START Substate: {substate}\n"
+                framework_states += f"        Description: {substate_config['description']}\n"
+                if 'goals' in substate_config.keys():
+                    substate_goal_count = 1
+                    for goal_config in substate_config['goals']:
+                        framework_states += f"        Substate goal{substate_goal_count}: {goal_config['name']}: {goal_config['goal']}\n"
+                        substate_goal_count += 1
+                framework_states += f"      END Substate: {substate}\n"
+            framework_states += f"    END State: {state}\n"
+
+        framework_message = f"""
+START Persona Framework Definition
+  Framework Name: {self.persona_config['persona']['name']}
+  Framework Description: {self.persona_config['persona']['description']}
+  Framework Purpose: {self.persona_config['persona']['purpose']}
+  START Persona Framework States
+{framework_states}
+  END Framework States
+END Persona Framework Definition
+"""
+
+        messages.append({
+            "role": "system",
+            "content": framework_message
+        })
+
+        # User State
+        data_object_message = ""
+        for (data_object_key, data_object) in self.persona_config['data_objects'].items():
+            data_object_message += f"  START Data Object: {data_object_key}\n"
+            # Iterate over the data objects and print each key and value as a string like: Key: Value
+            data_object_message += self.data_obj_json_to_string(data_object)
+            data_object_message += f"  END Data Object: {data_object_key}\n"
+
+
+        data_objects = f"""
+START Persona Framework Data Objects\n
+{data_object_message}
+END Persona Framework Data Objects\n
+"""
+        messages.append({
+            "role": "system",
+            "content": data_objects
+        })
+
+        return messages
+
     def process_user_input(self, user_input):
         # Append user input to the main conversation history
-        breakpoint()
+        #breakpoint()
         self.conversation_history.append({
             "role": "user",
             "content": f"User: {user_input}\n"

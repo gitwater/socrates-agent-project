@@ -54,6 +54,21 @@ their progress, discuss their day or past expereinces, provide an ear to listen,
                             'name': 'goal1',
                             'goal': 'The user has evaluated a score for all dimensions and subdimensions',
                         },
+                        {
+                            'name': 'goal2',
+                            'goal': 'The user has set one to three goals for how they would like to proceed with their self-awareness journey',
+                        },
+                    ],
+                    'substates': {
+                        'score_evaluation': {
+                            'description': "Used to evaluate the user's Self Awareness dimension and subdimension scores",
+                            'goals': [
+                                {
+                                    'name': 'goal1',
+                                    'goal': 'TODO: score_evaluation goal',
+                                },
+                            ]
+                        },
                         # Goal Setting
                         # 1. Dimension and Subdimension to focus on
                         # 2. Set a score goal for the dimension and subdimension
@@ -63,17 +78,14 @@ their progress, discuss their day or past expereinces, provide an ear to listen,
                         # 5. Set a practice goal for the dimension and subdimension
                         #    5.1 Determine one to three practices to focus on for the dimension and subdimension
                         #    5.2 Set an amount of time spent in practice goal for each practice
-                        {
-                            'name': 'goal2',
-                            'goal': 'The user has set one to three goals for how they would like to proceed with their self-awareness journey',
-                        },
-                    ],
-                    'substates': {
-                        'score_evaluation': {
-                            'description': "Used to evaluate the user's Self Awareness dimension and subdimension scores",
-                        },
                         'goal_setting': {
                             'description': "Used to set goals for the user's Self Awareness dimension and subdimension scores",
+                            'goals': [
+                                {
+                                    'name': 'goal1',
+                                    'goal': 'TODO: score_evaluation goal',
+                                },
+                            ]
                         },
                     }
                 },
@@ -100,8 +112,9 @@ their progress, discuss their day or past expereinces, provide an ear to listen,
                     #'goal3': 'To continuously determine which state and substate to be in based on the context of the situtation.',
                 },
             },
-            'data': {
-                'user': {
+            'data_objects': {
+                'awareness_dimensions': {
+                    'description': "The high level dimensions of self-awareness used to measure and track the user's self-awareness",
                     'dimensions': {
                         "Internal Self-Awareness": {
                             'description': "",
@@ -287,7 +300,7 @@ their progress, discuss their day or past expereinces, provide an ear to listen,
                                 },
                             }
                         }
-                    },
+                    }
                 }
             }
         }
