@@ -67,8 +67,8 @@ class Agent:
             }
 
         self.system_role = f"""
-Socrates, Theaetetus, and Plato are three AI assistants. Together they work as the thinking and reasoning mind for an AI agent named
-{self.persona_config['persona']['name']}.
+Socrates, Theaetetus, and Plato are three AI assistants. Together they work as the thinking and reasoning mind
+for an AI agent named {self.persona_config['persona']['name']}.
 
 {self.persona_config['persona']['name']} describes themselves as {self.persona_config['persona']['description']}.
 {self.persona_config['persona']['name']}'s purpose is {self.persona_config['persona']['purpose']}.
@@ -79,21 +79,16 @@ Their response will take into account:
   - {self.persona_config['persona']['name']}'s purpose
   - The current state and the goals of the state
 
-Their discussion should follow structured problem-solving approach, such as formalizing the problem, developing
-high-level strategies for solving the problem, reusing subproblem solutions where possible, critically evaluating
-each other's reasoning, avoiding logical errors, and effectively communicating their ideas.
+Their discussion should balance quick responses with structured problem-solving depending on the nature of
+the question. They should avoid logical errors, such as false dichotomy, hasty generalization, circular reasoning.
 
 They are permitted to consult with the User if they encounter any uncertainties, difficulties, or need to
 make assumtions by using the following phrase: "@Check with the User: QSTART [insert your question] QEND". Any
 responses from the User will be provided in the following round.
 
 To ensure that their response is correct Plato will proofread their dialog and provide feedback to them.
-Socrates and Theaetetus will ensure that Plato has proofread their dialog and does not have any suggestions
+Socrates and Theaetetus will ensure that Plato has proofread their dialog to esure he does not have any suggestions
 before giving their final answer.
-
-The final response should be as succinct as the current context requires it. Simple factual questions should
-have simple factual answers. Complex questions should have as detailed as necesssary answers to provide an
-understanding but not too detailed to overwhelm the User.
 
 If they end up having multiple possible answers, they should continue analyzing until they reach a consensus.
 
@@ -101,14 +96,17 @@ It should begin with the phrase: "Here is our @final answer: [insert answer]". T
 only be generated once Plato no longer has any suggestions the answer.
 
 If they encounter any issues with the validity of their answer, they should re-evaluate their reasoning and calculations.
+
 """
 
         if self.socratic_persona == 'Plato':
-            self.system_role += """
-\nNow as a proofreader, Plato, your task is to read through the dialogue between Socrates and Theaetetus and identify
-any errors they made."""
+            self.system_role += """Now as a proofreader, Plato, your task is to read through the dialogue between
+Socrates and Theaetetus and identify any errors they made."""
         else:
-            self.system_role += f"Now, suppose that you are {self.socratic_persona}. Please discuss with {self.other_socratic_persona} to find a response to the users response and context."
+            self.system_role += f"""Now, suppose that you are {self.socratic_persona}. Please discuss with
+{self.other_socratic_persona} to find a response to the users response and context.
+
+"""
 
         self.system_role += f"Generate responses for {self.socratic_persona} only. Responses from the other agents will be provided in the next round."
 
@@ -157,7 +155,11 @@ any errors they made."""
 
     def get_response(self, messages=None, add_to_history=False):
         if messages == None:
-            messages = self.response_history
+            # Insert Framework messages
+            # System profile
+            #
+            messages = self.get_framework_messages()
+            #messages = self.response_history
 
         count = 0
         while True:
@@ -210,48 +212,17 @@ any errors they made."""
             "content": f"Message from a proofreader Plato to Socrates and Theaetetus: {proofread}"
         })
 
-    def start_user_response(self, user_input):
-#         system_role = f"""
-# Socrates, Theaetetus, and Plato are three AI assistants. Their purpose is {self.prompts['purpose']}
+    def get_framework_messages(self):
+        messages = []
 
-# Socrates and Theaetetus will engage in multi-round dialogue to {self.prompts['engagement_purpose']}.
-# They will ensure that Plato has proofread their dialog and does not have any suggestions before giving
-# their final answer.
-
-# They are permitted to consult with the User if they encounter any uncertainties, difficulties, or need to
-# make assumtions by using the following phrase: "@Check with the User: QSTART [insert your question] QEND". Any responses from
-# the User will be provided in the following round.
-
-# Their discussion should follow a {self.prompts['discussion_strategy']}.
-
-# Their ultimate objective is to {self.prompts['ultimate_objective']}.
-
-# To present their final answer, they should adhere to the following guidelines:
-
-# - State the problem they were asked to solve.
-# - Present any assumptions they made in their reasoning.
-# - Detail the logical steps they took to arrive at their final answer.
-# - Socrates and Theaetetus will ensure that Plato has proofread their dialog and does not have any suggestions.
-# - Conclude with a final statement that directly answers the problem.
-# - Their final answer should be concise and free from logical errors, such as false dichotomy, hasty generalization,
-#   circular reasoning
-# - If they end up having multiple possible answers, they should continue analyzing until they reach a consensus.
-
-# It should begin with the phrase: "Here is our @final answer: [insert answer]". The "@final answer:" text should
-# only be generated once Plato no longer has any suggestions the answer.
-
-# If they encounter any issues with the validity of their answer, {self.prompts['if_answer_not_valid']}.
-# """
-
-        # Reset the response history for the current response genration
-        self.response_history = []
-        self.response_history.append({
+        # Framework System Roles
+        messages.append({
             "role": "system",
             "content": self.system_role
         })
-        self.response_history.append({
+        messages.append({
             "role": "user",
-            "content": f"User input: \"{user_input}\"."
+            "content": f"User input: \"{self.persona_agent.current_user_input}\"."
         })
 
         if self.socratic_persona == "Plato":
@@ -260,10 +231,30 @@ any errors they made."""
             assistant_role = f"Hi {self.other_socratic_persona}, "
         assistant_role += "let's respond to the user together. Please feel free to correct me if I make any mistakes."
 
-        self.response_history.append({
+        messages.append({
             "role": "assistant",
             "content": assistant_role
         })
+
+        # Framework
+        #  - Awareness Dimensions
+        #  - Framework states
+        # State
+        #  - User Awareness scores
+        #  - Current state
+        #  - Current state goals
+        # Memory
+        #  - Short-term memory
+        #  - Long-term memory
+
+
+        # Append the last 4 messages from the response history
+        if len(self.response_history) > 4:
+            messages += self.response_history[-4:]
+        else:
+            messages += self.response_history
+
+        return messages
 
 
 class SocratesAgent(Agent):
@@ -283,7 +274,7 @@ class PlatoAgent(Agent):
         success_string = "Analysis looks reasonable"
         suggestions_string = "Here are my suggestions:"
         pf_template = {
-                "role": "user",
+                "role":  self.socrate_agent_role,
                 "content": f"""
 The above is the conversation between Socrates and Theaetetus. Your job is to challenge their answers.
 They were likely to have made multiple mistakes. Please correct them.
@@ -295,7 +286,8 @@ Otherwise start with \"{suggestions_string}\"\n"""
         }
 
         #msg = self.get_anthropic_response(self.history + [pf_template])
-        msg = self.get_response(self.response_history + [pf_template], add_to_history=True)
+        messages = self.get_framework_messages() + [pf_template]
+        msg = self.get_response(messages, add_to_history=True)
         #print("\n-----------------------------------\n")
         #print("\nPlato Proofread it!\n")
 
@@ -331,13 +323,16 @@ class SocraticAgent:
             "content": f"User: {user_input}\n"
         })
 
-        self.socrates.start_user_response(user_input)
-        self.theaetetus.start_user_response(user_input)
-        self.plato.start_user_response(user_input)
+        self.current_user_input = user_input
+
+    def reset_response_conversation(self):
+        self.socrates.response_history = []
+        self.theaetetus.response_history = []
+        self.plato.response_history = []
 
     def add_user_feedback(self, questions, feedback):
         self.conversation_history.append({
-            "role": "system",
+            "role": "assistant",
             "content": f"{questions}\n"
         })
         self.conversation_history.append({
@@ -400,11 +395,8 @@ class SocraticAgent:
         self.session.in_progress = False
         self.session.first_question = False
         self.session.interactive_p = None
-        self.socrates.history = []
-        self.theaetetus.history = []
-        self.plato.history = []
 
-        if ("@final answer" in rep) or ("bye" in rep):
+        if ("@final answer: " in rep) or ("bye" in rep):
             breakpoint()
             final_anser_pattern = r"@final answer: (.*)"
             final_answer_matches = re.findall(final_anser_pattern, rep)
@@ -412,7 +404,7 @@ class SocraticAgent:
             if len(final_answer_matches) > 0:
                 final_answer = final_answer_matches[0]
                 self.conversation_history.append({
-                    "role": "system",
+                    "role": "assistant",
                     "content": f"{final_answer}"
                 })
 
@@ -430,6 +422,7 @@ class SocraticAgent:
             print("msg list:")
             print(msg_list)
             print("end conversation reset")
+        self.reset_response_conversation()
         self.session.in_progress_sub = False
 
         return msg_list
@@ -460,13 +453,14 @@ class SocraticAgent:
             self.session.in_progress_sub = True
             rep = self.session.dialog_follower.get_response(messages=None, add_to_history=True)
             user_response_msg_list.append({'role': self.session.dialog_follower.socratic_persona, 'response': rep})
-            self.session.dialog_lead.update_response_history("assistant", rep)
+            self.session.dialog_lead.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: {rep}")
             self.plato.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: "+rep)
             question_to_the_user = self.need_to_ask_the_User(rep)
             if question_to_the_user:
                 user_response_msg_list = self.interaction_ask_user_question(user_response_msg_list, question_to_the_user)
-                self.session.dialog_follower.update_response_history("assistant", f"Question to the User: {question_to_the_user}")
-            elif ("@final answer" in rep) or ("bye" in rep) or ("The context length exceeds my limit..." in rep):
+                self.session.dialog_follower.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: Question to the User: {question_to_the_user}")
+            elif ("@final answer: " in rep) or ("bye" in rep) or ("The context length exceeds my limit..." in rep):
+                breakpoint()
                 return json.dumps(self.interaction_final_answer(user_response_msg_list, rep))
             else:
                 user_response_msg_list = self.interaction_proofread(user_response_msg_list)

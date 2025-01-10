@@ -21,7 +21,7 @@ class User:
                 response = self.generate_response(self.session.user_input, mode="question")
 
             if self.session.wait_for_the_user:
-                self.session.agent.add_feedback(self.session.all_questions_to_the_user, user_input)
+                self.session.agent.add_user_feedback(self.session.all_questions_to_the_user, user_input)
                 self.session.all_questions_to_the_user = ""
                 self.session.wait_for_the_user = False
                 response = self.generate_response(user_input, mode="feedback")
