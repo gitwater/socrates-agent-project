@@ -22,10 +22,9 @@ class Agent:
     LLM_API="anthropic"
     LLM_API="openai"
 
-    def __init__(self, socratic_persona, persona_agent, persona_config=None, model=None):
+    def __init__(self, socratic_persona, persona_agent, model=None):
         self.socratic_persona = socratic_persona
         self.other_socratic_persona = None
-        self.persona_config = persona_config
         self.persona_agent = persona_agent
         self.response_history = []
         if model == None:
@@ -52,31 +51,26 @@ class Agent:
         elif self.socratic_persona == "Theaetetus":
             self.other_socratic_persona = "Socrates"
 
-        if persona_config == None:
-            breakpoint()
-            self.prompts = {
-                'purpose': 'solve challenging promblems.',
-                'user_input': 'The users input is as follows',
-                'engagement_purpose': 'solve the problem together for the User.',
-                'discussion_strategy': """structured problem-solving approach , such as formalizing the problem, developing
-    high-level strategies for solving the problem, reusing
-    subproblem solutions where possible, critically evaluating each other's reasoning, avoiding
-    logical errors, and effectively communicating their ideas.""",
-                'ultimate_objective': 'come to a correct solution through reasoned discussion.',
-                'if_answer_not_valid': 'they should re-evaluate their reasoning and calculations.'
-            }
+        self.system_role_single_agent = f"""
+Socrates is one of three AI assistants who work together as the thinking and reasoning mind for an AI agent named {self.persona_agent.persona_config['persona']['name']}.
+
+{self.persona_agent.persona_config['persona']['name']} describes themselves as {self.persona_agent.persona_config['persona']['description']}.
+{self.persona_agent.persona_config['persona']['name']}'s purpose is {self.persona_agent.persona_config['persona']['purpose']}.
+
+For now, {self.socratic_persona} is acting as the sole Agent to help with assessing the current state of the user with in the framework.
+"""
 
         self.system_role = f"""
 Socrates, Theaetetus, and Plato are three AI assistants. Together they work as the thinking and reasoning mind
-for an AI agent named {self.persona_config['persona']['name']}.
+for an AI agent named {self.persona_agent.persona_config['persona']['name']}.
 
-{self.persona_config['persona']['name']} describes themselves as {self.persona_config['persona']['description']}.
-{self.persona_config['persona']['name']}'s purpose is {self.persona_config['persona']['purpose']}.
+{self.persona_agent.persona_config['persona']['name']} describes themselves as {self.persona_agent.persona_config['persona']['description']}.
+{self.persona_agent.persona_config['persona']['name']}'s purpose is {self.persona_agent.persona_config['persona']['purpose']}.
 
 Socrates and Theaetetus will engage in multi-round dialogue to come up with a response to the User's input.
 Their response will take into account:
   - The User's input
-  - {self.persona_config['persona']['name']}'s purpose
+  - {self.persona_agent.persona_config['persona']['name']}'s purpose
   - The current state and the goals of the state
 
 Their discussion should balance quick responses with structured problem-solving depending on the nature of
@@ -112,11 +106,15 @@ Socrates and Theaetetus and identify any errors they made."""
 
         self.system_role += f"Generate responses for {self.socratic_persona} only. Responses from the other agents will be provided in the next round."
 
-    def get_gpt_response(self, messages):
+    def get_gpt_response(self, messages, json_response=False):
+        if json_response:
+            response_format = "json_object"
+        else:
+            response_format = "text"
         try:
             res = self.llm_client.chat.completions.create(
                     model=self.model,
-                    #response_format=response_format,
+                    response_format={"type": response_format},
                     temperature=0.5,
                     top_p=1.0,
                     presence_penalty=0.0,
@@ -155,7 +153,7 @@ Socrates and Theaetetus and identify any errors they made."""
         #return message.content
 
 
-    def get_response(self, messages=None, add_to_history=False):
+    def get_response(self, messages=None, add_to_history=False, json_response=False):
         if messages == None:
             # Insert Framework messages
             # System profile
@@ -168,7 +166,7 @@ Socrates and Theaetetus and identify any errors they made."""
             if Agent.LLM_API == "anthropic":
                 msg = self.get_anthropic_response(messages)
             elif Agent.LLM_API == "openai":
-                msg = self.get_gpt_response(messages)
+                msg = self.get_gpt_response(messages, json_response)
             else:
                 print("LLM API not set")
                 breakpoint()
@@ -214,13 +212,26 @@ Socrates and Theaetetus and identify any errors they made."""
             "content": f"Message from a proofreader Plato to Socrates and Theaetetus: {proofread}"
         })
 
-    def get_framework_messages(self):
+    def get_framework_messages(self, system_role_type="socratic"):
         messages = []
         # --------------------------------------------------
-        # Static Framework Configuration
+        # Static Framework Information
+        if system_role_type == "socratic":
+            system_content = self.system_role
+        elif system_role_type == "starting_point":
+            system_content = self.system_role_single_agent
+
+            system_content += f"""
+JSON Response Format:
+{json.dumps(self.persona_agent.persona_config['json_response_format'])}
+"""
+        else:
+            breakpoint()
+
+
         messages.append({
             "role": "system",
-            "content": self.system_role
+            "content": system_content
         })
 
         # Framework: Static & Dynamic User Data
@@ -235,23 +246,24 @@ Socrates and Theaetetus and identify any errors they made."""
 
         # --------------------------------------------------
         # User Input
-        messages.append({
-            "role": "user",
-            "content": f"User input: \"{self.persona_agent.current_user_input}\"."
-        })
+        if system_role_type == "socratic":
+            messages.append({
+                "role": "user",
+                "content": f"User input: \"{self.persona_agent.current_user_input}\"."
+            })
 
-        # --------------------------------------------------
-        # User Engagement
-        if self.socratic_persona == "Plato":
-            assistant_role = f"Hi Theaetetus and Socrates, "
-        else:
-            assistant_role = f"Hi {self.other_socratic_persona}, "
-        assistant_role += "let's respond to the user together. Please feel free to correct me if I make any mistakes."
+            # --------------------------------------------------
+            # User Engagement
+            if self.socratic_persona == "Plato":
+                assistant_role = f"Hi Theaetetus and Socrates, "
+            else:
+                assistant_role = f"Hi {self.other_socratic_persona}, "
+            assistant_role += "let's respond to the user together. Please feel free to correct me if I make any mistakes."
 
-        messages.append({
-            "role": "assistant",
-            "content": assistant_role
-        })
+            messages.append({
+                "role": "assistant",
+                "content": assistant_role
+            })
 
         # --------------------------------------------------
         # TODO: Short Term & Long Term Memory
@@ -271,39 +283,48 @@ Socrates and Theaetetus and identify any errors they made."""
 
         return messages
 
+    def get_conversation_starting_point(self):
+        # Query the Agent for the initial steps
+        messages = self.get_framework_messages(system_role_type="starting_point")
+        response = self.get_response(messages, add_to_history=False, json_response=True)
+
+        breakpoint()
+        return response
 
 class SocratesAgent(Agent):
-    def __init__(self, persona_agent, persona_config=None, model=None):
-        super().__init__('Socrates', persona_agent, persona_config, model)
+    def __init__(self, persona_agent, model=None):
+        super().__init__('Socrates', persona_agent, model)
 
 
 class TheaetetusAgent(Agent):
-    def __init__(self, persona_agent, persona_config=None, model=None):
-        super().__init__('Theaetetus', persona_agent, persona_config, model)
+    def __init__(self, persona_agent, model=None):
+        super().__init__('Theaetetus', persona_agent, model)
 
 class PlatoAgent(Agent):
-    def __init__(self, persona_agent, persona_config=None, model=None):
-        super().__init__('Plato', persona_agent, persona_config, model)
-        self.proofread_see_previous_suggestions = 0
+    def __init__(self, persona_agent, model=None):
+        super().__init__('Plato', persona_agent, model)
+        self.proofread_see_previous_suggestions_count = 0
+        self.proofread_suggestions_count = 0
+        self.proofread_suggestions_count_max = 3
 
     def proofread(self):
         success_string = "Analysis looks reasonable"
         suggestions_string = "Here are my suggestions:"
 
-        if self.proofread_see_previous_suggestions >= 3:
-            previous_suggest_instruction = f"You have reached your 'Please see my previous suggestions' response, please response with \"{success_string}\" if you still need to waiting for more information."
+        if self.proofread_see_previous_suggestions_count >= 3:
+            proof_read_input = f"You have reached the number of times you are allowed to respond with 'Please see my previous suggestions', please response with \"{success_string}\"."
         else:
             previous_suggest_instruction = "If you need to repeat your suggestions, please response with \"Please see my previous suggestions, waiting for more information, carry on working on a response\"."
+            proof_read_input = f"""
+            The above is the conversation between Socrates and Theaetetus. Your job is to challenge their answers.
+            They were likely to have made multiple mistakes. Please correct them.
+            {previous_suggest_instruction}
+            Otherwise start with \"{suggestions_string}\"
+            Do not ask the user any questions.\n"""
 
         pf_template = {
                 "role":  self.socrate_agent_role,
-                "content": f"""
-The above is the conversation between Socrates and Theaetetus. Your job is to challenge their answers.
-They were likely to have made multiple mistakes. Please correct them.
-{previous_suggest_instruction}
-If you think so far their discussion is alright, please respond with \"{success_string}.\".
-Do not ask the user any questions.
-Otherwise start with \"{suggestions_string}\"\n"""
+                "content": proof_read_input
         }
 
         # If the latest response from Socrates or Theaetetus does not offer any new information, please response with \"Waiting for more information\".
@@ -316,9 +337,13 @@ Otherwise start with \"{suggestions_string}\"\n"""
 
         # Check if msg contains "Please see my previous suggestions" increment a counter
         if "Please see my previous suggestions" in msg:
-            self.proofread_see_previous_suggestions += 1
+            self.proofread_see_previous_suggestions_count += 1
         else:
-            self.proofread_see_previous_suggestions = 0
+            self.proofread_see_previous_suggestions_count = 0
+
+        print(f"############## Proofread suggestions count: {self.proofread_suggestions_count} >= {self.proofread_suggestions_count_max}\n")
+        if msg.find(suggestions_string) != -1:
+            self.proofread_suggestions_count += 1
 
         return msg
         # Check if msg starts with "Analysis looks reasonable" case insensitively
@@ -334,27 +359,37 @@ Otherwise start with \"{suggestions_string}\"\n"""
 
 class SocraticAgent:
 
-    def __init__(self, session, persona_config, prompts=None, model=None):
+    def __init__(self, session, persona_config, model=None):
         #if model == None:
             #breakpoint()
         self.session = session
         self.persona_config = persona_config
-        self.socrates = SocratesAgent(self, persona_config, model)
-        self.theaetetus = TheaetetusAgent(self, persona_config, model)
-        self.plato = PlatoAgent(self, persona_config, model)
+        self.socrates = SocratesAgent(self, model)
+        self.theaetetus = TheaetetusAgent(self, model)
+        self.plato = PlatoAgent(self, model)
         self.conversation_history = []
+        self.current_user_input = None
 
     # A recurrent fucntion to convert a data object from a JSON object to a string
     # by iterating over keys and recalling the function to convert dicts and lists
     def data_obj_json_to_string(self, data_obj, indent="    "):
         data_obj_str = f""
-        for (key, value) in data_obj.items():
-            if type(value) == dict:
-                data_obj_str += f"{indent}{key}:\n{self.data_obj_json_to_string(value, indent+'  ')}"
-            elif type(value) == list:
-                data_obj_str += f"{indent}{key}:\n{self.data_obj_json_to_string(value, indent+'  ')}"
-            else:
-                data_obj_str += f"{indent}{key}: {value}\n"
+        if type(data_obj) == list:
+            for value in data_obj:
+                if type(value) == dict:
+                    data_obj_str += f"{indent}-\n{self.data_obj_json_to_string(value, indent+'  ')}"
+                elif type(value) == list:
+                    data_obj_str += f"{indent}-\n{self.data_obj_json_to_string(value, indent+'  ')}"
+                else:
+                    data_obj_str += f"{indent}- {value}\n"
+        else:
+            for (key, value) in data_obj.items():
+                if type(value) == dict:
+                    data_obj_str += f"{indent}{key}:\n{self.data_obj_json_to_string(value, indent+'  ')}"
+                elif type(value) == list:
+                    data_obj_str += f"{indent}{key}:\n{self.data_obj_json_to_string(value, indent+'  ')}"
+                else:
+                    data_obj_str += f"{indent}{key}: {value}\n"
         return data_obj_str
 
 
@@ -367,8 +402,6 @@ class SocraticAgent:
             "role": "assistant",
             "content": conversation_history
         }
-        if len(self.conversation_history) > 1:
-            breakpoint()
         return message
 
     def get_framework_messages(self, messages):
@@ -397,11 +430,18 @@ class SocraticAgent:
                 framework_states += f"      END Substate: {substate}\n"
             framework_states += f"    END State: {state}\n"
 
+        framework_goals = ""
+        for (name, goal) in self.persona_config['goals']['framework'].items():
+            framework_goals += f"    {name}: {goal}\n"
+
         framework_message = f"""
 START Persona Framework Definition
   Framework Name: {self.persona_config['persona']['name']}
   Framework Description: {self.persona_config['persona']['description']}
   Framework Purpose: {self.persona_config['persona']['purpose']}
+  START Framework Goals
+{framework_goals}
+  END Framework Goals
   START Persona Framework States
 {framework_states}
   END Framework States
@@ -448,8 +488,10 @@ END Persona Framework Data Objects\n
         self.socrates.response_history = []
         self.theaetetus.response_history = []
         self.plato.response_history = []
+        self.plato.proofread_suggestions_count = 0
 
     def add_user_feedback(self, questions, feedback):
+        breakpoint()
         self.conversation_history.append({
             "role": "assistant",
             "content": f"{questions}\n"
@@ -463,6 +505,7 @@ END Persona Framework Data Objects\n
         self.plato.add_user_feedback(questions, feedback)
 
     def need_to_ask_the_User(self, text):
+
         pattern = r"@Check with the User: QSTART\s*(.*) QEND"
         matches = re.findall(pattern, text)
 
@@ -479,6 +522,7 @@ END Persona Framework Data Objects\n
         if len(matches) == 0:
             return None
 
+        breakpoint()
         for match in matches:
             if debug_printing:
                 print(f"[... Asking the User's opinon on: {match}]\n")
@@ -515,7 +559,9 @@ END Persona Framework Data Objects\n
         self.session.first_question = False
         self.session.interactive_p = None
 
-        if ("@final answer: " in rep) or ("bye" in rep):
+        if ("bye" in rep):
+            breakpoint()
+        if ("@final answer: " in rep):
             breakpoint()
             final_anser_pattern = r"@final answer: (.*)"
             final_answer_matches = re.findall(final_anser_pattern, rep)
@@ -579,7 +625,6 @@ END Persona Framework Data Objects\n
                 user_response_msg_list = self.interaction_ask_user_question(user_response_msg_list, question_to_the_user)
                 self.session.dialog_follower.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: Question to the User: {question_to_the_user}")
             elif ("@final answer: " in rep) or ("bye" in rep) or ("The context length exceeds my limit..." in rep):
-                breakpoint()
                 return json.dumps(self.interaction_final_answer(user_response_msg_list, rep))
             else:
                 user_response_msg_list = self.interaction_proofread(user_response_msg_list)
@@ -615,9 +660,28 @@ END Persona Framework Data Objects\n
         return json.dumps([{'role': 'System',
                         'response': msg}])
 
+    def interaction_get_conversation_start_point(self):
+        # Query the Agent for the initial steps
+        response = self.socrates.get_conversation_starting_point()
+        response = json.loads(response)
+        # self.session.init_complete = True
+
+        user_response_msg_list = [{'role': 'Socrates', 'response': response['agent_question']}]
+        conversation_message = {'role': 'assistant', 'content': response['agent_question']}
+        self.conversation_history.append(conversation_message)
+
+        self.persona_config['data_objects']['framework']['user_state'] = response['user_state']
+        self.session.init_complete = True
+
+        return json.dumps(user_response_msg_list)
+
+
     # Processes the interactions with the User
     def interactions(self):
         # If the User has provided input, process it to generate a response
+        if self.session.init_complete == False:
+            # Query the Agent for the next steps
+            return self.interaction_get_conversation_start_point()
         if self.session.user_input:
             if not self.session.in_progress:
                 # Start a Socractic conversation to generate a response to the user's input

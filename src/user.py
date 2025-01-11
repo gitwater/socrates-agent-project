@@ -12,6 +12,8 @@ class User:
         return "Connecting..."
 
     def interactions(self):
+        if self.session.init_complete == False:
+            return None
         chat_response = json.dumps([])
         if self.session.user_input is None or self.session.wait_for_the_user:
             user_input = self.session.cli.read_input()
