@@ -7,7 +7,7 @@ import anthropic
 from pprint import pprint
 
 debug_printing = False
-#debug_printing = True
+debug_printing = True
 debug_token_printing = True
 debug_converstation = True
 debug_converstation = False
@@ -15,7 +15,6 @@ debug_converstation = False
 class AgentMemory:
     def __init__(self):
         self.size_threshold = 100
-
 
 class Agent:
 
@@ -38,8 +37,8 @@ class Agent:
         elif Agent.LLM_API == "openai":
             self.llm_client = openai.OpenAI()
             self.socrate_agent_role = "system"
-            #self.model = 'gpt-3.5-turbo'
-            self.model = 'gpt-4o'
+            self.model = 'gpt-3.5-turbo'
+            #self.model = 'gpt-4o'
         else:
             print("LLM API not set")
             breakpoint()
@@ -78,9 +77,8 @@ the question. They should avoid logical errors, such as false dichotomy, hasty g
 Responses should be as short as possible to keep token count low, but still include all necessary and
 relevant information.
 
-They are permitted to consult with the User if they encounter any uncertainties, difficulties, or need to
-make assumtions by using the following phrase: "@Check with the User: QSTART [insert your question] QEND". Any
-responses from the User will be provided in the following round.
+If they require asking the user questions to further understand the context, they should ask the question as
+part of their final answer. The user's response will be provided in the next round.
 
 To ensure that their response is correct Plato will proofread their dialog and provide feedback to them.
 Socrates and Theaetetus will ensure that Plato has proofread their dialog to esure he does not have any suggestions
@@ -128,7 +126,8 @@ Socrates and Theaetetus and identify any errors they made."""
             else:
                 # Handle other errors here
                 msg = f"I enconter an when using my backend model.\n\n Error: {str(e)}"
-            breakpoint()
+            print(f"!!! ERROR: {msg}: Retrying!!")
+            return ""
 
         return msg
 
@@ -288,7 +287,6 @@ JSON Response Format:
         messages = self.get_framework_messages(system_role_type="starting_point")
         response = self.get_response(messages, add_to_history=False, json_response=True)
 
-        breakpoint()
         return response
 
 class SocratesAgent(Agent):
@@ -312,7 +310,12 @@ class PlatoAgent(Agent):
         suggestions_string = "Here are my suggestions:"
 
         if self.proofread_see_previous_suggestions_count >= 3:
-            proof_read_input = f"You have reached the number of times you are allowed to respond with 'Please see my previous suggestions', please response with \"{success_string}\"."
+            #proof_read_input = f"You have reached the number of times you are allowed to respond with 'Please see my previous suggestions', please response with \"{success_string}\"."
+            #proof_read_input = f"Socrates and Theaetetus have deliberated enough, please agree with their response with \"{success_string}\"."
+            msg = "{success_string}"
+            # udpate history
+            self.update_response_history("assistant", f"Plato: {msg}")
+            return msg
         else:
             previous_suggest_instruction = "If you need to repeat your suggestions, please response with \"Please see my previous suggestions, waiting for more information, carry on working on a response\"."
             proof_read_input = f"""
@@ -369,6 +372,12 @@ class SocraticAgent:
         self.plato = PlatoAgent(self, model)
         self.conversation_history = []
         self.current_user_input = None
+
+    def put_conversation_history(self, role, message):
+        self.conversation_history.append({
+            "role": role,
+            "content": message
+        })
 
     # A recurrent fucntion to convert a data object from a JSON object to a string
     # by iterating over keys and recalling the function to convert dicts and lists
@@ -475,14 +484,11 @@ END Persona Framework Data Objects\n
         return messages
 
     def process_user_input(self, user_input):
-        # Append user input to the main conversation history
-        #breakpoint()
-        self.conversation_history.append({
-            "role": "user",
-            "content": f"User: {user_input}\n"
-        })
-
         self.current_user_input = user_input
+        self.put_conversation_history('User', user_input)
+        if self.session.in_progress == False:
+            self.interaction_start_socratic_conversation()
+
 
     def reset_response_conversation(self):
         self.socrates.response_history = []
@@ -512,6 +518,8 @@ END Persona Framework Data Objects\n
         if len(matches) == 0:
             return False
 
+        breakpoint()
+
         return matches
 
     def ask_the_User(self, text):
@@ -539,30 +547,40 @@ END Persona Framework Data Objects\n
     def interaction_start_socratic_conversation(self):
         self.session.in_progress = True
         self.session.dialog_lead, self.session.dialog_follower = self.socrates, self.theaetetus
-        return json.dumps([
-            {'role': 'Socrates',
-            'response': f"Hi Theaetetus, let's solve this problem together. Please feel free to correct me if I make any logical mistakes.\n"}
-            ])
 
-    def interaction_ask_user_question(self, msg_list, question_to_the_user):
+        self.session.send_agent_dialog_message('Socrates', f"Hi Theaetetus, let's solve this problem together. Please feel free to correct me if I make any logical mistakes.")
+        print(f"Starting Socratic Conversation")
+        return True
+        # return json.dumps([
+        #     {'role': 'Socrates',
+        #     'response': f"Hi Theaetetus, let's solve this problem together. Please feel free to correct me if I make any logical mistakes.\n"}
+        #     ])
+
+    def interaction_ask_user_question(self, question_to_the_user):
         self.session.all_questions_to_the_user = " ".join(question_to_the_user)
-        msg_list.append(
-            {'role': 'System',
-            'response': f"Asking the User: {self.session.all_questions_to_the_user}"})
-        self.session.wait_for_the_user = True
-        return msg_list
+        #msg_list.append(
+        #    {'role': 'System',
+        #    'response': f"Asking the User: {self.session.all_questions_to_the_user}"})
+        self.session.send_user_message(self.session.all_questions_to_the_user)
+        self.session.user_input = None
+        self.session.asked_question = False
+        self.session.in_progress = False
+        self.session.in_progress_sub = False
+        self.session.wait_for_the_user = False
+        self.reset_response_conversation()
+        #self.session.wait_for_the_user = True
+        #return msg_list
+        return True
 
-    def interaction_final_answer(self, msg_list, rep):
+    def interaction_final_answer(self, rep):
         self.session.user_input = None
         self.session.asked_question = False
         self.session.in_progress = False
         self.session.first_question = False
-        self.session.interactive_p = None
 
         if ("bye" in rep):
             breakpoint()
         if ("@final answer: " in rep):
-            breakpoint()
             final_anser_pattern = r"@final answer: (.*)"
             final_answer_matches = re.findall(final_anser_pattern, rep)
 
@@ -573,31 +591,34 @@ END Persona Framework Data Objects\n
                     "content": f"{final_answer}"
                 })
 
-            msg_list.append(
-                    {'role': 'System',
-                    'response': "They just gave you their final answer."})
+            self.session.send_user_message(final_answer)
+            #msg_list.append(
+            #        {'role': 'System',
+            #        'response': "They just gave you their final answer."})
         elif "The context length exceeds my limit..." in rep:
-            msg_list.append(
-                    {'role': 'System',
-                    'response': "The dialog went too long, please try again."})
+            self.session.send_user_message("The dialog went too long, please try again.")
+            #msg_list.append(
+            #        {'role': 'System',
+            #        'response': "The dialog went too long, please try again."})
         if debug_printing:
             print("user_input:", self.session.user_input)
             print("asked_question:", self.session.asked_question)
             print("in_progress:", self.session.in_progress)
-            print("msg list:")
-            print(msg_list)
+            #print("msg list:")
+            #print(msg_list)
             print("end conversation reset")
         self.reset_response_conversation()
         self.session.in_progress_sub = False
 
-        return msg_list
+        return True
 
-    def interaction_proofread(self, user_resp_msg_list):
+    def interaction_proofread(self):
         pr = self.plato.proofread()
         if pr:
-            user_resp_msg_list.append(
-                {'role': 'Plato',
-                'response': pr})
+            self.session.send_agent_dialog_message('Plato', pr)
+            #user_resp_msg_list.append(
+            #    {'role': 'Plato',
+            #    'response': pr})
             self.socrates.add_proofread(pr)
             self.theaetetus.add_proofread(pr)
             feedback = self.ask_the_User(pr)
@@ -610,41 +631,53 @@ END Persona Framework Data Objects\n
 
         self.session.dialog_lead, self.session.dialog_follower = self.session.dialog_follower, self.session.dialog_lead
 
-        return user_resp_msg_list
+        return True
 
     def interaction_continue_socratic_conversation(self):
-        user_response_msg_list = []
-        if self.session.in_progress_sub == False and self.session.wait_for_the_user == False:
+        #user_response_msg_list = []
+        print(f"Continuing Socratic Conversation: {self.session.in_progress_sub}: {self.session.wait_for_the_user}")
+        if True == True or (self.session.in_progress_sub == False and self.session.wait_for_the_user == False):
+            print(f"Continuing Socratic Conversation: deliberating...")
             self.session.in_progress_sub = True
             rep = self.session.dialog_follower.get_response(messages=None, add_to_history=True)
-            user_response_msg_list.append({'role': self.session.dialog_follower.socratic_persona, 'response': rep})
+            self.session.send_agent_dialog_message(self.session.dialog_follower.socratic_persona, rep)
+            #user_response_msg_list.append({'role': self.session.dialog_follower.socratic_persona, 'response': rep})
             self.session.dialog_lead.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: {rep}")
             self.plato.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: "+rep)
             question_to_the_user = self.need_to_ask_the_User(rep)
             if question_to_the_user:
-                user_response_msg_list = self.interaction_ask_user_question(user_response_msg_list, question_to_the_user)
-                self.session.dialog_follower.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: Question to the User: {question_to_the_user}")
+                success = self.interaction_ask_user_question(question_to_the_user)
+                if not success:
+                    breakpoint()
+                #self.session.dialog_follower.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: Question to the User: {question_to_the_user}")
             elif ("@final answer: " in rep) or ("bye" in rep) or ("The context length exceeds my limit..." in rep):
-                return json.dumps(self.interaction_final_answer(user_response_msg_list, rep))
+                print(f"Continuing Socratic Conversation: Final answer detected")
+                return self.interaction_final_answer(rep)
+                #return json.dumps(self.interaction_final_answer(user_response_msg_list, rep))
             else:
-                user_response_msg_list = self.interaction_proofread(user_response_msg_list)
+                print(f"Continuing Socratic Conversation: Proofreading")
+                success = self.interaction_proofread()
+                if not success:
+                    breakpoint()
 
-            if debug_converstation:
-                for message in user_response_msg_list:
-                    if message['role'] != 'System':
-                        message['response'] = 'Deliberating...'
+            # if debug_converstation:
+            #     for message in user_response_msg_list:
+            #         if message['role'] != 'System':
+            #             message['response'] = 'Deliberating...'
 
-            if 0 and debug_printing:
+            if debug_printing:
                 print("user_input:", self.session.user_input)
                 print("asked_question:", self.session.asked_question)
                 print("in_progress:", self.session.in_progress)
-                print("msg list:")
-                print(user_response_msg_list)
+                #print("msg list:")
+                #print(user_response_msg_list)
             self.session.in_progress_sub = False
         else:
             if debug_printing:
                 print("under processing")
-        return json.dumps(user_response_msg_list)
+
+        return True
+        #return json.dumps(user_response_msg_list)
 
     def interaction_ask_for_more_questions(self):
         self.session.asked_question = True
@@ -666,32 +699,35 @@ END Persona Framework Data Objects\n
         response = json.loads(response)
         # self.session.init_complete = True
 
-        user_response_msg_list = [{'role': 'Socrates', 'response': response['agent_question']}]
+        self.session.send_user_message(response['agent_question'])
+        #user_response_msg_list = [{'role': 'Agent', 'response': response['agent_question']}]
         conversation_message = {'role': 'assistant', 'content': response['agent_question']}
         self.conversation_history.append(conversation_message)
 
         self.persona_config['data_objects']['framework']['user_state'] = response['user_state']
         self.session.init_complete = True
 
-        return json.dumps(user_response_msg_list)
+        return True
 
 
     # Processes the interactions with the User
-    def interactions(self):
+    def interactions(self, user_input=None):
         # If the User has provided input, process it to generate a response
+        if user_input != None:
+            self.process_user_input(user_input)
+
         if self.session.init_complete == False:
             # Query the Agent for the next steps
             return self.interaction_get_conversation_start_point()
-        if self.session.user_input:
-            if not self.session.in_progress:
-                # Start a Socractic conversation to generate a response to the user's input
-                return self.interaction_start_socratic_conversation()
-            else:
-                # Continue the Socratic conversation to generate a response to the user's input
-                return self.interaction_continue_socratic_conversation()
+        elif self.session.in_progress:
+            # Continue the Socratic conversation to generate a response to the user's input
+            return self.interaction_continue_socratic_conversation()
         elif not self.session.asked_question:
             # If the user has not provided input, and the agent has not asked any questions
             # then ask the user for a question
+            print("waiting for next user input")
+            return True
+            breakpoint()
             return self.interaction_ask_for_more_questions()
         else:
             # If the user has not provided input, and the agent has already asked a question
@@ -701,4 +737,4 @@ END Persona Framework Data Objects\n
                 print("asked_question:", self.session.asked_question)
                 print("in_progress:", self.session.in_progress)
                 print("no question skip")
-            return json.dumps([])
+            return True

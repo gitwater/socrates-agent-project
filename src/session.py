@@ -1,12 +1,9 @@
-
+import random
 from socratic_agent import SocraticAgent
 from user import User
 from cli import CLI
-import random
 from pprint import pprint
 
-session_states = {}
-default_client_id = 1
 
 class SessionState:
     def __init__(self, client_id):
@@ -23,6 +20,8 @@ class SessionState:
         self.all_questions_to_the_user = ""
         self.cli = CLI(client_id)
         self.user = User(self)
+        self.agent_msgs = []
+        self.agent_dialog_msgs = []
         # Init will assess the current state of the User to decide where to start
         self.init_complete = False
         # Aidan Agent Config: Self Awareness AI Assistant
@@ -403,36 +402,24 @@ their progress, discuss their day or past expereinces, provide an ear to listen,
                 total += subdimension['score']
             dimension['score'] = total
 
-        # TODO:
-        #   - Next step is to work with json resposnes
-        #   - Store state on disk for reuse
-        #   - On Final Answer, process the answer to make choices on what to do next with JSON response
-        #   - Introduce logic to analyze the json response to detect state changes to guide users
-        #   - If user doesn't want to follow then stick to the current state for a while then reasses
-        #   - Find a way to set some user goals (if needed)
-        #   - Find a way to take a quiz to get initial scores
 
         #self.agent = SocraticAgent(self, agent_config)
         self.agent = SocraticAgent(self, persona_framework_config)
 
-def main():
-    session = SessionState(default_client_id)
+    def send_user_message(self, message):
+        agent_msg = {'role': 'Agent', 'response': message}
+        self.agent_msgs.append(agent_msg)
 
-    while True:
-        response = session.user.interactions()
-        if response != None:
-            session.cli.write_json(response)
-        response = session.agent.interactions()
-        # TODO: Hide Socratic conversation session from the User
-        # and output only Agent questions and final answers
-        session.cli.write_json(response)
+    def pop_user_messages(self):
+        messages = self.agent_msgs
+        self.agent_msgs = []
+        return messages
 
-    # while True:
-    #     response = chat(session)
-    #     if response != None:
-    #         session.cli.write_json(response)
-    #     response = active_message(session)
-    #     session.cli.write_json(response)
+    def send_agent_dialog_message(self, agent_role, message):
+        agent_msg = {'role': 'debug-agent', 'response': f"{agent_role}: {message}"}
+        self.agent_dialog_msgs.append(agent_msg)
 
-if __name__ == "__main__":
-    main()
+    def pop_agent_dialog_messages(self):
+        messages = self.agent_dialog_msgs
+        self.agent_dialog_msgs = []
+        return messages
