@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, session
 from flask_session import Session
+import threading
 import uuid
 import time
 import subprocess
@@ -19,9 +20,11 @@ app.config['SESSION_TYPE'] = 'filesystem'
 app.secret_key = 'socraticalpaca'
 Session(app)
 
-N = 50
 last_client_id = 0
 session_states = {}
+chat_count = 0
+
+request_locks = {}
 
 
 @app.route('/')
@@ -32,38 +35,58 @@ def index():
     session_states[last_client_id] = SessionState(last_client_id)
     #return render_template('index.html')
     return render_template('index_debug.html')
+    #return render_template('index_debug_2.html')
 
 
 @app.route('/active-message')
 def active_message():
 
-    global N, last_client_id, session_states
+    global last_client_id, session_states, request_locks
 
     client_id = int(session['client_id'])
-    if client_id > last_client_id:
-        print("current session id", client_id)
-        print("last_client_id", last_client_id)
-        last_client_id = client_id
-        session_states[last_client_id] = SessionState(last_client_id)
+    #if client_id not in request_locks:
+    #    request_locks[client_id] = threading.Lock()
 
-    session_state = session_states[client_id]
+    #request_lock = request_locks[client_id]
+    # print(f"{client_id}: Request locked? 1: {request_lock.locked()}")
+    # print(f"Lock aquire 1: {request_lock.acquire()}")
+    # print(f"{client_id}: Request locked? 2: {request_lock.locked()}")
+    # print(f"Lock aquire 2: {request_lock.acquire()}")
+    # print(f"Lock aquire 3: {request_lock.acquire()}")
+    #request_lock.aquire()
+    user_messages = []
+    if True == True: #request_lock.acquire(blocking=False) == True:
+        #print(f"{client_id}: Request lock after : {request_lock.locked()}")
+        if client_id > last_client_id:
+            print("current session id", client_id)
+            print("last_client_id", last_client_id)
+            last_client_id = client_id
+            session_states[last_client_id] = SessionState(last_client_id)
 
-    success = session_state.agent.interactions()
-    if success:
-        user_messages = session_state.pop_user_messages()
-        deliberation_messages = session_state.pop_agent_dialog_messages()
-        user_messages.extend(deliberation_messages)
-        return jsonify(user_messages)
+        session_state = session_states[client_id]
+        success = session_state.agent.interactions()
+        if success:
+            user_messages = session_state.pop_user_messages()
+            deliberation_messages = session_state.pop_agent_dialog_messages()
+            user_messages.extend(deliberation_messages)
+        else:
+            breakpoint()
+        #request_lock.release()
     else:
-        breakpoint()
+        print(f"{client_id}: Request lock: interaction in progress")
+
+    return jsonify(user_messages)
 
 @app.route('/chat', methods=['POST'])
 def chat():
     global session_states
+    global chat_count
     client_id = int(session['client_id'])
     session_state = session_states[client_id]
 
     user_input = request.form['user_input']
+    chat_count += 1
+    print(f"--------------> User input: {user_input}: {chat_count}")
     success = session_state.agent.interactions(user_input)
     if success:
         user_messages = session_state.pop_user_messages()
@@ -85,7 +108,6 @@ def chat():
     #     session_state.all_questions_to_tony = ""
     #     session_state.wait_tony = False
     #     response = generate_response(user_input, mode="feedback")
-
     return jsonify([{'role': 'system','response': response}])
 
 
@@ -98,4 +120,4 @@ def chat():
 
 
 if __name__ == '__main__':
-    app.run(port=8000, debug=True)
+    app.run(port=8000, debug=False, threaded=False)

@@ -5,6 +5,9 @@ import re
 import time
 import anthropic
 from pprint import pprint
+import chromadb
+from datetime import datetime
+import hashlib
 
 debug_printing = False
 debug_printing = True
@@ -12,9 +15,162 @@ debug_token_printing = True
 debug_converstation = True
 debug_converstation = False
 
+# class MyEmbeddingFunction(chromadb.EmbeddingFunction):
+#     def __call__(self, input: chromadb.Documents) -> chromadb.Embeddings:
+#         # embed the documents somehow
+
+#         return embeddings
+
 class AgentMemory:
-    def __init__(self):
+    def __init__(self, agent):
         self.size_threshold = 100
+        self.agent = agent
+        self.vector_db_client = chromadb.PersistentClient(path="./agent_memory.db")
+        self.collection = self.vector_db_client.get_or_create_collection(
+            "agent_memory",
+            metadata={
+                "description": "A collection of embeddings for user inputs and agent responses.",
+                "created": str(datetime.now())
+            }
+        )
+
+
+    def generate_embeddings(self, user_input, agent_response):
+        # Generate embeddings for the user input and agent response
+        embeddings = self.agent.get_response([{"role": "system", "content": user_input}, {"role": "system", "content": agent_response}], json_response=True)
+        return embeddings
+
+    def analyze_conversation(self, user_input, agent_response):
+        prompt = f"""
+Analyze the following user input and agent response. Extract the required metadata according to the JSON schema provided
+ below. Ensure all fields are populated accurately, following the provided descriptions and predefined options.
+
+User input: "{user_input}"
+Agent response: "{agent_response}"
+
+### Predefined Options
+
+#### Semantic Tags:
+Choose one or more tags that represent the main topics or intents of the conversation:
+- information_request: Used when the user or agent seeks specific facts, knowledge, or clarification about a topic.
+- problem_solving: Applied when the conversation focuses on identifying and resolving an issue or challenge.
+- decision_making: For interactions involving evaluating options and making choices.
+- emotional_expression: Tags conversations where feelings such as frustration, excitement, or sadness are expressed.
+- self_reflection: Used when the user or agent reflects on personal experiences, thoughts, or emotions.
+- feedback_exchange: Applied when giving or receiving constructive feedback about actions, ideas, or outcomes.
+- planning: Tags discussions about organizing or preparing for future actions or tasks.
+- learning: Used for conversations centered on acquiring new skills, knowledge, or insights.
+- collaboration: For interactions that involve working together or coordinating efforts toward a shared goal.
+- context_linking: Tags when the current conversation is explicitly related to previous discussions or experiences.
+- future_projection: Used for imagining, predicting, or discussing future scenarios or possibilities.
+- relationship_building: Applied when the interaction strengthens interpersonal rapport or establishes trust.
+- task_management: Tags conversations focused on tracking, assigning, or completing tasks.
+- motivation: Used when the conversation aims to inspire or encourage action toward goals.
+- insight_generation: For interactions where new ideas, perspectives, or connections are uncovered.
+- attention_focus: Tags when the conversation narrows attention to a specific aspect or priority.
+- emotional_regulation: Applied when the interaction involves managing or balancing emotions constructively.
+- exploration: For conversations that delve into new ideas, possibilities, or open-ended questions.
+
+#### Emotional Tone:
+Choose one tone that best reflects the emotional state of the user during the interaction:
+- neutral: The conversation is calm, objective, or informational.
+- frustrated: The user shows signs of annoyance, impatience, or dissatisfaction.
+- angry: The user expresses anger, irritation, or hostility.
+- hopeful: The user conveys optimism or anticipation of a positive outcome.
+- happy: The user is pleased, satisfied, or showing appreciation.
+- confused: The user is uncertain or seeking clarification.
+- anxious: The user expresses worry, nervousness, or concern.
+- grateful: The user conveys thanks or gratitude.
+- upset: The user is emotionally distressed or disappointed.
+
+#### Interaction Sequence:
+Choose the sequence that best describes the flow of the conversation:
+- user_input_first: The user is initiating a new conversation or asking a question.
+- agent_response_first: The agent is initiating a new conversation or asking a question.
+
+Use the above definitions to ensure the metadata generated in the json output accurately reflects the interaction.
+
+JSON Response Format:
+{{
+  "semantic_tags": "A comma deliminated list of relevant topics or intents for the interaction. Select from the predefined options above."],
+  "emotional_tone": "The overall emotional tone of the interaction. Select from the predefined options above.",
+  "key_entities": "A comma deliminated list of names, dates, events, or specific entities mentioned in the interaction.",
+  "interaction_summary": "A concise summary of the user input and agent response in 1-2 sentences, capturing the essence of the exchange.",
+  "interaction_sequence": "Indicates the sequence of interaction in the conversation, specifying whether the user input or agent response initiated the exchange."
+}}
+"""
+
+        messages = [
+            {
+                "role": "system",
+                "content": prompt
+            }
+        ]
+        response = self.agent.get_response(messages, add_to_history=False, json_response=True)
+        return response
+
+    def get_memory(self, user_input):
+        # Get the embeddings for the user input
+        if user_input == "":
+            return ""
+        user_embeddings = self.agent.get_embeddings(user_input)
+
+        # Query the vector memory for the most similar user input
+        results = self.collection.query(
+            query_embeddings=[user_embeddings],
+            #query_texts=[user_input],
+            n_results=6,
+            #include=["metadatas, documents"]
+        )
+
+        # Build Memory text
+        memory_text = f"START Memory Context: {len(results['metadatas'])}\n"
+        # Iterate over the number of items in ids
+        for metadata in results['metadatas']:
+            memory_text += f"Semantic Tags: {metadata[0]['semantic_tags']}\n"
+            memory_text += f"Emotional Tone: {metadata[0]['emotional_tone']}\n"
+            memory_text += f"Interaction Summary: {metadata[0]['interaction_summary']}\n"
+        memory_text += "END Memory Context\n"
+        return memory_text
+
+    def remember_conversation(self, user_input, agent_response):
+        # Metadata
+        # Analyze the conversation to extract metadata
+        metadata = self.analyze_conversation(user_input, agent_response)
+        # Extract the metadata from the response
+        metadata_dict = json.loads(metadata)
+
+        # Embeddings
+        user_embeddings = self.agent.get_embeddings(user_input)
+        agent_embeddings = self.agent.get_embeddings(agent_response)
+
+        documents=[user_input, agent_response]
+        embeddings=[user_embeddings, agent_embeddings]
+        metadatas = [
+            { "role": "user", **metadata_dict },
+            { "role": "agent", **metadata_dict }
+        ]
+        if metadata_dict["interaction_sequence"] == "agent_response_first":
+            document = [agent_response, user_input]
+            embeddings = [agent_embeddings, user_embeddings]
+            metadatas = [
+                { "role": "agent", **metadata_dict },
+                { "role": "user", **metadata_dict }
+            ]
+
+        # IDs: Generate a unique id using a SHA256 hash for the user_input and agent_response
+        # Do not use chroma
+        ids = [hashlib.sha256(user_input.encode()).hexdigest(), hashlib.sha256(agent_response.encode()).hexdigest()]
+
+        # Add to vector memory
+        self.collection.add(
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas,
+            embeddings=embeddings
+            # ids are genearted automatically by ChromaDB
+        )
+
 
 class Agent:
 
@@ -37,7 +193,8 @@ class Agent:
         elif Agent.LLM_API == "openai":
             self.llm_client = openai.OpenAI()
             self.socrate_agent_role = "system"
-            self.model = 'gpt-3.5-turbo'
+            self.model = 'gpt-4o-mini'
+            #self.model = 'gpt-3.5-turbo'
             #self.model = 'gpt-4o'
         else:
             print("LLM API not set")
@@ -77,7 +234,7 @@ the question. They should avoid logical errors, such as false dichotomy, hasty g
 Responses should be as short as possible to keep token count low, but still include all necessary and
 relevant information.
 
-If they require asking the user questions to further understand the context, they should ask the question as
+If they want to ask the user questions to further understand the context, they should ask the question as
 part of their final answer. The user's response will be provided in the next round.
 
 To ensure that their response is correct Plato will proofread their dialog and provide feedback to them.
@@ -86,12 +243,13 @@ before giving their final answer.
 
 If they end up having multiple possible answers, they should continue analyzing until they reach a consensus.
 
-It should begin with the phrase: "Here is our @final answer: [insert answer]". The "@final answer:" text should
-only be generated once Plato no longer has any suggestions the answer.
-
-If they encounter any issues with the validity of their answer, they should re-evaluate their reasoning and calculations.
-
+When Socrates is ready to present the final answer, he should do so using the text @FAStart [insert answer] @FAEnd .
+The final answer should only be generated once Plato no longer has any suggestions the answer. The answer must be
+worded from the perspective of the agent speaking to the user. The final answer should flow with the Conversation
+History so that it feels like the conversation has continuity of context.
 """
+#If they encounter any issues with the validity of their answer, they should re-evaluate their reasoning and calculations.
+#"""
 
         if self.socratic_persona == 'Plato':
             self.system_role += """Now as a proofreader, Plato, your task is to read through the dialogue between
@@ -127,6 +285,7 @@ Socrates and Theaetetus and identify any errors they made."""
                 # Handle other errors here
                 msg = f"I enconter an when using my backend model.\n\n Error: {str(e)}"
             print(f"!!! ERROR: {msg}: Retrying!!")
+            breakpoint()
             return ""
 
         return msg
@@ -151,6 +310,25 @@ Socrates and Theaetetus and identify any errors they made."""
         return response
         #return message.content
 
+    def get_embeddings(self, input_text):
+        if Agent.LLM_API == "anthropic":
+            embeddings = self.llm_client.embeddings.create(
+                model=self.model,
+                input_text=input_text
+            )
+        elif Agent.LLM_API == "openai":
+            embeddings = self.llm_client.embeddings.create(
+                model='text-embedding-ada-002',
+                #model='text-embedding-3-small',
+                #model='text-embedding-3-large'
+                input=input_text,
+                encoding_format="float"
+            )
+        else:
+            print("LLM API not set")
+            breakpoint()
+
+        return embeddings.data[0].embedding
 
     def get_response(self, messages=None, add_to_history=False, json_response=False):
         if messages == None:
@@ -158,7 +336,11 @@ Socrates and Theaetetus and identify any errors they made."""
             # System profile
             #
             messages = self.get_framework_messages()
-            #messages = self.response_history
+            # Iterate over messages and appent to a local file
+            with open("messages.json", "+a") as f:
+                f.write("----------------------------------------\n")
+                f.write(f"Agent: {self.socratic_persona}\n")
+                json.dump(messages, f, indent=4)
 
         count = 0
         while True:
@@ -177,11 +359,12 @@ Socrates and Theaetetus and identify any errors they made."""
                 breakpoint()
             else:
                 print(">>>>>>> No response from the model, retrying...")
+                breakpoint()
 
         # Print the number of tokens in the messages and the response
         # A token is 4 bytes
         if debug_token_printing:
-            print(f"\n>>>>>>>>> Get Response: Input Tokens: {len(''.join([m['content'] for m in messages]))/4}: Output Tokens: {len(msg)/4}\n")
+            print(f"\n>>>>>>>>> {self.socrate_agent_role}: Get Response: Input Tokens: {len(''.join([m['content'] for m in messages]))/4}: Output Tokens: {len(msg)/4}\n")
 
         if add_to_history:
             self.response_history.append({
@@ -217,16 +400,18 @@ Socrates and Theaetetus and identify any errors they made."""
         # Static Framework Information
         if system_role_type == "socratic":
             system_content = self.system_role
-        elif system_role_type == "starting_point":
+        else:
+            if system_role_type not in ["socratic", "final_answer", "starting_point"]:
+                breakpoint()
             system_content = self.system_role_single_agent
-
+            json_format_dict = self.persona_agent.persona_config['json_response_format']['general']
+            merged_json_format_dict = {**json_format_dict, **self.persona_agent.persona_config['json_response_format'][system_role_type]}
             system_content += f"""
 JSON Response Format:
-{json.dumps(self.persona_agent.persona_config['json_response_format'])}
-"""
-        else:
-            breakpoint()
+{json.dumps(merged_json_format_dict)}
 
+Please ensure that all variables in the JSON response format have valid values.
+"""
 
         messages.append({
             "role": "system",
@@ -242,6 +427,9 @@ JSON Response Format:
         #  - Current state goals
 
         messages = self.persona_agent.get_framework_messages(messages)
+        for message in messages:
+            if type(message) == str and len(message) == 0:
+                breakpoint()
 
         # --------------------------------------------------
         # User Input
@@ -266,6 +454,13 @@ JSON Response Format:
 
         # --------------------------------------------------
         # TODO: Short Term & Long Term Memory
+        memory_context = self.persona_agent.get_conversation_memory()
+        if len(memory_context) > 0:
+            memory_message = {
+                "role": "assistant",
+                "content": memory_context
+            }
+            messages.append(memory_message)
 
         # --------------------------------------------------
         # Conversation history
@@ -306,13 +501,13 @@ class PlatoAgent(Agent):
         self.proofread_suggestions_count_max = 3
 
     def proofread(self):
-        success_string = "Analysis looks reasonable"
+        success_string = "Analysis looks reasonable. Socrates or Theatetus, please proceed with your final answer using the information you have, no more deliberating."
         suggestions_string = "Here are my suggestions:"
 
-        if self.proofread_see_previous_suggestions_count >= 3:
+        if self.proofread_see_previous_suggestions_count >= self.proofread_suggestions_count_max or self.proofread_suggestions_count >= self.proofread_suggestions_count_max:
             #proof_read_input = f"You have reached the number of times you are allowed to respond with 'Please see my previous suggestions', please response with \"{success_string}\"."
             #proof_read_input = f"Socrates and Theaetetus have deliberated enough, please agree with their response with \"{success_string}\"."
-            msg = "{success_string}"
+            msg = f"{success_string}"
             # udpate history
             self.update_response_history("assistant", f"Plato: {msg}")
             return msg
@@ -341,24 +536,14 @@ class PlatoAgent(Agent):
         # Check if msg contains "Please see my previous suggestions" increment a counter
         if "Please see my previous suggestions" in msg:
             self.proofread_see_previous_suggestions_count += 1
-        else:
-            self.proofread_see_previous_suggestions_count = 0
 
         print(f"############## Proofread suggestions count: {self.proofread_suggestions_count} >= {self.proofread_suggestions_count_max}\n")
+        print(f"############## Proofread previous suggestions count: {self.proofread_see_previous_suggestions_count} >= {self.proofread_suggestions_count_max}\n")
         if msg.find(suggestions_string) != -1:
             self.proofread_suggestions_count += 1
 
         return msg
-        # Check if msg starts with "Analysis looks reasonable" case insensitively
-        if msg[:len(suggestions_string)+1].lower() == success_string.lower():
-            return msg
-        else:
-            #breakpoint()
-            self.response_history.append({
-                    "role": "assistant",
-                    "content": msg
-                })
-            return msg
+
 
 class SocraticAgent:
 
@@ -372,8 +557,36 @@ class SocraticAgent:
         self.plato = PlatoAgent(self, model)
         self.conversation_history = []
         self.current_user_input = None
+        self.memory_system = AgentMemory(self.socrates)
+
+    def get_conversation_memory(self):
+        user_input = ""
+        if self.current_user_input != None:
+            user_input = self.current_user_input
+        return self.memory_system.get_memory(user_input)
 
     def put_conversation_history(self, role, message):
+        if role not in ['user', 'agent']:
+            breakpoint()
+
+        if role == 'agent':
+            role = 'assistant'
+        elif role == 'user':
+            user_input = message
+            if len(self.conversation_history) > 0:
+                # Search backwards until the last 'assistant' message
+                agent_response = ""
+                start_index = -1
+                for i in range(len(self.conversation_history)-1, -1, -1):
+                    if self.conversation_history[i]['role'] == 'assistant':
+                        if start_index == -1:
+                            start_index = i
+                        agent_response += self.conversation_history[i]['content']
+                    elif start_index != -1 or i == 0:
+                        break
+                if agent_response != "":
+                    self.memory_system.remember_conversation(user_input, agent_response)
+
         self.conversation_history.append({
             "role": role,
             "content": message
@@ -405,7 +618,10 @@ class SocraticAgent:
     def get_conversation_history(self):
         conversation_history = "START Conversation History\n"
         for message in self.conversation_history:
-            conversation_history += f"{message['role']}: {message['content']}\n\n"
+            role = 'user'
+            if message['role'] == 'assistant':
+                role = 'agent'
+            conversation_history += f"{role}: {message['content']}\n\n"
         conversation_history += "END Conversation History\n"
         message = {
             "role": "assistant",
@@ -485,7 +701,7 @@ END Persona Framework Data Objects\n
 
     def process_user_input(self, user_input):
         self.current_user_input = user_input
-        self.put_conversation_history('User', user_input)
+        self.put_conversation_history('user', user_input)
         if self.session.in_progress == False:
             self.interaction_start_socratic_conversation()
 
@@ -495,6 +711,7 @@ END Persona Framework Data Objects\n
         self.theaetetus.response_history = []
         self.plato.response_history = []
         self.plato.proofread_suggestions_count = 0
+        self.plato.proofread_see_previous_suggestions_count = 0
 
     def add_user_feedback(self, questions, feedback):
         breakpoint()
@@ -576,30 +793,27 @@ END Persona Framework Data Objects\n
         self.session.user_input = None
         self.session.asked_question = False
         self.session.in_progress = False
+        self.session.in_progress_sub = False
         self.session.first_question = False
 
-        if ("bye" in rep):
-            breakpoint()
-        if ("@final answer: " in rep):
-            final_anser_pattern = r"@final answer: (.*)"
-            final_answer_matches = re.findall(final_anser_pattern, rep)
+        if ("@FAStart" in rep):
+            final_answer_pattern = r"@FAStart\s*(.*?)\s*@FAEnd"
+            final_answer_matches = re.findall(final_answer_pattern, rep, re.DOTALL)
 
             if len(final_answer_matches) > 0:
                 final_answer = final_answer_matches[0]
-                self.conversation_history.append({
-                    "role": "assistant",
-                    "content": f"{final_answer}"
-                })
+                self.put_conversation_history('agent', final_answer)
 
             self.session.send_user_message(final_answer)
-            #msg_list.append(
-            #        {'role': 'System',
-            #        'response': "They just gave you their final answer."})
+
         elif "The context length exceeds my limit..." in rep:
             self.session.send_user_message("The dialog went too long, please try again.")
             #msg_list.append(
             #        {'role': 'System',
             #        'response': "The dialog went too long, please try again."})
+            breakpoint()
+        else:
+            breakpoint()
         if debug_printing:
             print("user_input:", self.session.user_input)
             print("asked_question:", self.session.asked_question)
@@ -607,6 +821,7 @@ END Persona Framework Data Objects\n
             #print("msg list:")
             #print(msg_list)
             print("end conversation reset")
+
         self.reset_response_conversation()
         self.session.in_progress_sub = False
 
@@ -636,7 +851,7 @@ END Persona Framework Data Objects\n
     def interaction_continue_socratic_conversation(self):
         #user_response_msg_list = []
         print(f"Continuing Socratic Conversation: {self.session.in_progress_sub}: {self.session.wait_for_the_user}")
-        if True == True or (self.session.in_progress_sub == False and self.session.wait_for_the_user == False):
+        if True == True: # and self.session.in_progress_sub == False:
             print(f"Continuing Socratic Conversation: deliberating...")
             self.session.in_progress_sub = True
             rep = self.session.dialog_follower.get_response(messages=None, add_to_history=True)
@@ -644,21 +859,26 @@ END Persona Framework Data Objects\n
             #user_response_msg_list.append({'role': self.session.dialog_follower.socratic_persona, 'response': rep})
             self.session.dialog_lead.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: {rep}")
             self.plato.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: "+rep)
-            question_to_the_user = self.need_to_ask_the_User(rep)
-            if question_to_the_user:
-                success = self.interaction_ask_user_question(question_to_the_user)
-                if not success:
-                    breakpoint()
+            # question_to_the_user = self.need_to_ask_the_User(rep)
+            # if question_to_the_user:
+            #     success = self.interaction_ask_user_question(question_to_the_user)
+            #     if not success:
+            #         breakpoint()
                 #self.session.dialog_follower.update_response_history("assistant", f"{self.session.dialog_follower.socratic_persona}: Question to the User: {question_to_the_user}")
-            elif ("@final answer: " in rep) or ("bye" in rep) or ("The context length exceeds my limit..." in rep):
-                print(f"Continuing Socratic Conversation: Final answer detected")
-                return self.interaction_final_answer(rep)
-                #return json.dumps(self.interaction_final_answer(user_response_msg_list, rep))
-            else:
+            # Sure fire way of detect "@FAStart" in the response
+            if ("@FAStart" in rep):
+                # or ("The context length exceeds my limit..." in rep):
+                print(f"Socratic Conversation: Final answer detected")
+                success = self.interaction_final_answer(rep)
+                if success == False:
+                    breakpoint()
+            elif self.session.in_progress_sub == True and self.session.in_progress == True:
                 print(f"Continuing Socratic Conversation: Proofreading")
                 success = self.interaction_proofread()
                 if not success:
                     breakpoint()
+            else:
+                breakpoint()
 
             # if debug_converstation:
             #     for message in user_response_msg_list:
@@ -671,10 +891,9 @@ END Persona Framework Data Objects\n
                 print("in_progress:", self.session.in_progress)
                 #print("msg list:")
                 #print(user_response_msg_list)
-            self.session.in_progress_sub = False
         else:
             if debug_printing:
-                print("under processing")
+                print("Processing User Input")
 
         return True
         #return json.dumps(user_response_msg_list)
@@ -699,6 +918,9 @@ END Persona Framework Data Objects\n
         response = json.loads(response)
         # self.session.init_complete = True
 
+        self.session.send_user_message(response['agent_greeting'])
+        self.session.send_user_message(response['current_context'])
+        self.session.send_user_message(response['next_steps'])
         self.session.send_user_message(response['agent_question'])
         #user_response_msg_list = [{'role': 'Agent', 'response': response['agent_question']}]
         conversation_message = {'role': 'assistant', 'content': response['agent_question']}
@@ -715,13 +937,13 @@ END Persona Framework Data Objects\n
         # If the User has provided input, process it to generate a response
         if user_input != None:
             self.process_user_input(user_input)
-
-        if self.session.init_complete == False:
+        elif self.session.init_complete == False:
             # Query the Agent for the next steps
-            return self.interaction_get_conversation_start_point()
+            self.interaction_get_conversation_start_point()
         elif self.session.in_progress:
             # Continue the Socratic conversation to generate a response to the user's input
-            return self.interaction_continue_socratic_conversation()
+            while self.session.in_progress:
+                self.interaction_continue_socratic_conversation()
         elif not self.session.asked_question:
             # If the user has not provided input, and the agent has not asked any questions
             # then ask the user for a question
@@ -738,3 +960,5 @@ END Persona Framework Data Objects\n
                 print("in_progress:", self.session.in_progress)
                 print("no question skip")
             return True
+
+        return True

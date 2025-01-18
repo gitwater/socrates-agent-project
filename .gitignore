@@ -5,3 +5,5 @@ agent.db
 data/*
 .DS_Store
 flask_session/*
+agent_memory.db
+messages.json

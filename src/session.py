@@ -18,8 +18,8 @@ class SessionState:
         self.wait_for_the_user = False
         self.interactive_p = None
         self.all_questions_to_the_user = ""
-        self.cli = CLI(client_id)
-        self.user = User(self)
+        #self.cli = CLI(client_id)
+        #self.user = User(self)
         self.agent_msgs = []
         self.agent_dialog_msgs = []
         # Init will assess the current state of the User to decide where to start
@@ -35,63 +35,35 @@ guide them through personalized learning and practices, and spend time reflectin
 their progress, discuss their day or past expereinces, provide an ear to listen, and offer feedback.""",
             },
             'states': {
-                'assessment': {
-                    'description': "Used to assess the user's Self Awareness dimension and subdimension scores",
+                'education': {
+                    'description': "Used to educate the user on the Self Awareness dimension and subdimension being focused on",
                     'goals': [
                         {
                             'name': 'goal1',
-                            'goal': 'The user has evaluated a score for all dimensions and subdimensions',
-                        },
-                        {
-                            'name': 'goal2',
-                            'goal': 'The user has set one to three goals for how they would like to proceed with their self-awareness journey',
+                            'goal': 'The user has learned about the dimension and subdimension being focused on.',
                         },
                     ],
-                    'substates': {
-                        'score_evaluation': {
-                            'description': "Used to evaluate the user's Self Awareness dimension and subdimension scores.",
-                            #'modules': "",
-                            'goals': [
-                                {
-                                    'name': 'goal1',
-                                    'goal': 'Ensure the user has a non-zero score in any dimension or subdimension by switching to this state and substate.',
-                                },
-                            ]
-                        },
-                        # Goal Setting
-                        # 1. Dimension and Subdimension to focus on
-                        # 2. Set a score goal for the dimension and subdimension
-                        # 3. Set a time goal for the dimension and subdimension
-                        # 4. Set an education goal for the dimension and subdimension
-                        #    4.1 Set an amount of time spent in education goal for the dimension and subdimension
-                        # 5. Set a practice goal for the dimension and subdimension
-                        #    5.1 Determine one to three practices to focus on for the dimension and subdimension
-                        #    5.2 Set an amount of time spent in practice goal for each practice
-                        'goal_setting': {
-                            'description': "Used to set goals for the user's Self Awareness dimension and subdimension scores",
-                            'goals': [
-                                {
-                                    'name': 'goal1',
-                                    'goal': 'If the user has not set ant goals, switch to this state and substate to set goals.',
-                                },
-                            ]
-                        },
-                    }
-                },
-                'education': {
-                    'description': "Used to educate the user on the Self Awareness dimension and subdimension being focused on",
-                    'substates': {
-                    }
+                    'substates': {}
                 },
                 'practice': {
                     'description': "Used to suggest, discuss, and assist with practices to improve the user's Self Awareness dimension and subdimension score being focused on",
-                    'substates': {
-                    }
+                    'goals': [
+                        {
+                            'name': 'goal1',
+                            'goal': 'The user has practiced the practices suggested for the dimension and subdimension being focused on.',
+                        },
+                    ],
+                    'substates': {}
                 },
                 'reflection': {
                     'description': "Used to reflect on the users progress, discuss their day, provide an ear to listen, and offer feedback",
-                    'substates': {
-                    }
+                    'goals': [
+                        {
+                            'name': 'goal1',
+                            'goal': 'The user has reflected on their progress and discussed their day.',
+                        },
+                    ],
+                    'substates': {}
                 },
             },
             'goals': {
@@ -102,15 +74,24 @@ their progress, discuss their day or past expereinces, provide an ear to listen,
                 },
             },
             'json_response_format': {
-                'user_state': {
-                    'state': '<calculate the current state based on the current context and place it here>',
-                    'substate': '<calculate the current substate of the calculated state above, based on the current context and place it here>',
+                'general': {
+                    'user_state': {
+                        'state': '<calculate the current state based on the existing prompt context and place it here. Valid states are education, practice, and reflection>',
+                        'substate': '<calculate the current substate of the calculated state above, based on the current context and place it here>',
+                    },
+                    'dimension': f"<Place the name of the self-awareness dimension here that the user should focus on next here>",
+                    'subdimension': f"<Place the name of the self-awareness subdimension of the dimension above here>",
+                    'current_context': f"<Place a statement of a detailed description of the user's growth context within the framework. Word it as if the agent is speaking to the user. Start with 'You are currently...' and end with '...'.>",
+                    'next_steps': "<Place a a statement of detailed description of where and what the agent feels the next action should be here. Word it as if the agent is speaking to the user.>",
+                    'agent_question': f"<If the agent has a question for the User, it should be asked here. It should be relevant to the current_situation and next_steps values.>",
                 },
-                'dimension': f"<Place the name of the self-awareness dimension here that the user should focus on next here>",
-                'subdimension': f"<Place the name of the self-awareness subdimension of the dimension above here>",
-                'current_situation': f"<Place a description of the current situation here>",
-                'next_steps': "<Place a description of where and what the agent feels the next action should be here>",
-                'agent_question': f"<If the agent has a question for the User, it should be asked here>",
+                'starting_point': {
+                    'agent_greeting': "<Generate a welcome back statement and place it here. This is the only variable in the json a greeting or welcome message must be generated.>"
+                },
+                'final_answer': {
+                    'agent_greeting': "<The user is returning after a period of time. Generate a greeting to the user here.>"
+                }
+
             },
             'data_objects': {
                 'framework': {
@@ -118,8 +99,7 @@ their progress, discuss their day or past expereinces, provide an ear to listen,
                         'state': '',
                         'substate': '',
                     },
-                    'user_goals': [
-                    ]
+                    'user_goals': []
                 },
                 'custom': {
                     'awareness_dimensions': {
@@ -186,206 +166,20 @@ their progress, discuss their day or past expereinces, provide an ear to listen,
                             }
                             },
                             "Mindfulness": {
-                            "description": "Focus on present-moment experience with acceptance.",
-                            "score": 0,
-                            "subdimensions": {
-                                "Present-Moment Awareness": {
-                                "description": "Conscious awareness of the present moment.",
-                                "score": 0
-                                },
-                                "Acceptance": {
-                                "description": "Acceptance of thoughts and feelings without judgment.",
-                                "score": 0
+                                "description": "Focus on present-moment experience with acceptance.",
+                                "score": 0,
+                                "subdimensions": {
+                                    "Present-Moment Awareness": {
+                                    "description": "Conscious awareness of the present moment.",
+                                    "score": 0
+                                    },
+                                    "Acceptance": {
+                                    "description": "Acceptance of thoughts and feelings without judgment.",
+                                    "score": 0
+                                    }
                                 }
                             }
-                            }
                         }
-                        # 'dimensions': {
-                        #     "Internal Self-Awareness": {
-                        #         'description': "",
-                        #         'score': 0,
-                        #         'subdimensions': {
-                        #             "Emotional Awareness": {
-                        #                 'description': "",
-                        #                 'score': 0,
-                        #             },
-                        #             "Cognitive Awareness": {
-                        #                 'description': "",
-                        #                 "score": 0
-                        #             },
-                        #             "Physical Awareness (Interoception)": {
-                        #                 'description': "",
-                        #                 "score": 0
-                        #             },
-                        #             "Values and Beliefs Awareness": {
-                        #                 'description': "",
-                        #                 "score": 0
-                        #             },
-                        #         }
-                        #     },
-                        #     "External Self-Awareness": {
-                        #         'description': "",
-                        #         'score': 0,
-                        #         'subdimensions': {
-                        #             "Social Awareness": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Empathy": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Feedback Integration": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #         }
-                        #     },
-                        #     "Emotional Regulation": {
-                        #         'description': "",
-                        #         'score': 0,
-                        #         'subdimensions': {
-                        #             "Emotional Resilience": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Emotional Regulation Strategies": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Impulse Control": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #         }
-                        #     },
-                        #     "Metacognition (Cognitive Reflection)": {
-                        #         'description': "",
-                        #         'score': 0,
-                        #         'subdimensions': {
-                        #             "Self-Reflection": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Bias Recognition": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Strategic Thinking": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #         }
-                        #     },
-                        #     "Mindfulness": {
-                        #         'description': "",
-                        #         'score': 0,
-                        #         'subdimensions': {
-                        #             "Present-Moment Awareness": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Non-Judgmental Observation": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Acceptance": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #         }
-                        #     },
-                        #     "Behavioral Awareness": {
-                        #         'description': "",
-                        #         'score': 0,
-                        #         'subdimensions': {
-                        #             "Action-Outcome Linkage": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Consistency with Values": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Habit Awareness": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #         }
-                        #     },
-                        #     "Interpersonal Awareness": {
-                        #         'description': "",
-                        #         'score': 0,
-                        #         'subdimensions': {
-                        #             "Communication Skills": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Relationship Dynamics": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Boundary Setting": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #         }
-                        #     },
-                        #     "Cultural Awareness": {
-                        #         'description': "",
-                        #         'score': 0,
-                        #         'subdimensions': {
-                        #             "Cultural Sensitivity": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Ethnocentrism Recognition": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Inclusivity Practices": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #         }
-                        #     },
-                        #     "Physical Environment Awareness": {
-                        #         'description': "",
-                        #         'score': 0,
-                        #         'subdimensions': {
-                        #             "Sensory Perception": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Spatial Awareness": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Environmental Influence": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #         }
-                        #     },
-                        #     "Purpose and Meaning Awareness": {
-                        #         'description': "",
-                        #         'score': 0,
-                        #         'subdimensions': {
-                        #             "Goal Alignment": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Existential Reflection": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #             "Motivational Drivers": {
-                        #                 "description": "",
-                        #                 "score": 0
-                        #             },
-                        #         }
-                        #     }
-                        # }
                     }
                 }
             }
