@@ -947,7 +947,7 @@ END Persona Framework Data Objects\n
         elif not self.session.asked_question:
             # If the user has not provided input, and the agent has not asked any questions
             # then ask the user for a question
-            print("waiting for next user input")
+            #print("waiting for next user input")
             return True
             breakpoint()
             return self.interaction_ask_for_more_questions()
