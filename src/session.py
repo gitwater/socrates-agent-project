@@ -27,10 +27,10 @@ class SessionState:
         self.init_complete = False
         # Aidan Agent Config: Self Awareness AI Assistant
         # Agent Persona Framework Config
-        persona = "aidan"
-        persona = "luca"
+        #persona = "aidan"
+        #persona = "luca"
         persona = "aria"
-        persona = "sage"
+        #persona = "sage"
 
         if persona == "sage":
             persona_framework_config = persona_configs.social_interaction_assistant_config
