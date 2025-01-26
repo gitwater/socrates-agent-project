@@ -29,7 +29,7 @@ class SessionState:
         # Agent Persona Framework Config
         #persona = "aidan"
         #persona = "luca"
-        persona = "aria"
+        persona = "sage"
         #persona = "sage"
 
         if persona == "sage":

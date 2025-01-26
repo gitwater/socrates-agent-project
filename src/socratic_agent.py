@@ -8,7 +8,7 @@ from pprint import pprint
 from memory import AgentMemory
 from datetime import datetime
 import hashlib
-from database import Database
+from sql_database import SQLDatabase
 from agent import Agent
 
 debug_printing = False
@@ -89,38 +89,39 @@ class SocraticAgent:
         self.plato = PlatoAgent(self, model)
         self.current_user_input = None
         self.memory_system = AgentMemory(persona_config, self.socrates)
-        self.db = Database(self.persona_config)
 
     def get_conversation_memory(self):
         user_input = ""
         if self.current_user_input != None:
             user_input = self.current_user_input
-        return self.memory_system.get_memory(user_input)
+        memory = self.memory_system.get_memory(user_input)
+        return memory
+
 
     def put_conversation_history(self, role, message):
         if role not in ['user', 'agent']:
             breakpoint()
 
-        if role == 'user':
-            llm_client_role = 'user'
-            user_input = message
-            # Memory System: Add new memory
-            conversation_history = self.db.get_conversation_history()
-            if len(conversation_history) > 0:
-                # Search backwards until the last 'assistant' message
-                agent_response = ""
-                start_index = -1
-                for i in range(len(conversation_history)-1, -1, -1):
-                    if conversation_history[i]['role'] == 'agent':
-                        if start_index == -1:
-                            start_index = i
-                        agent_response += conversation_history[i]['content']
-                    elif start_index != -1 or i == 0:
-                        break
-                if agent_response != "":
-                    self.memory_system.remember_conversation(user_input, agent_response)
+        self.memory_system.store_utterance(role, message)
+        # if role == 'user':
+        #     user_input = message
+        #     # Memory System: Add new memory
+        #     conversation_history = self.db.get_conversation_history()
+        #     if len(conversation_history) > 0:
+        #         # Search backwards until the last 'assistant' message
+        #         agent_response = ""
+        #         start_index = -1
+        #         for i in range(len(conversation_history)-1, -1, -1):
+        #             if conversation_history[i]['role'] == 'agent':
+        #                 if start_index == -1:
+        #                     start_index = i
+        #                 agent_response += conversation_history[i]['content']
+        #             elif start_index != -1 or i == 0:
+        #                 break
+        #         if agent_response != "":
+        #             self.memory_system.remember_conversation(user_input, agent_response)
 
-        self.db.put_conversation_history(role, message)
+        # self.db.put_conversation_history(role, message)
 
     # A recurrent fucntion to convert a data object from a JSON object to a string
     # by iterating over keys and recalling the function to convert dicts and lists

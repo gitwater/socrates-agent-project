@@ -28,7 +28,7 @@ class Agent:
             self.socrate_agent_role = "system"
             self.model = 'gpt-4o-mini'
             #self.model = 'gpt-3.5-turbo'
-            #self.model = 'gpt-4o'
+            #self.model = 'gpt-4o'Thank you
         else:
             print("LLM API not set")
             breakpoint()
@@ -294,11 +294,6 @@ Please ensure that all variables in the JSON response format have valid values.
                 "content": memory_context
             }
             messages.append(memory_message)
-
-        # --------------------------------------------------
-        # Conversation history
-        conversation_history_message = self.persona_agent.get_conversation_history()
-        messages.append(conversation_history_message)
 
         # --------------------------------------------------
         # Current response conversation history
